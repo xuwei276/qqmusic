@@ -12,6 +12,7 @@ const officialLogin = document.querySelector("#officialLogin");
 const officialHome = document.querySelector("#officialHome");
 const checkOfficialLogin = document.querySelector("#checkOfficialLogin");
 const searchForm = document.querySelector("#searchForm");
+const toggleSearch = document.querySelector("#toggleSearch");
 const keyword = document.querySelector("#keyword");
 const searchState = document.querySelector("#searchState");
 const results = document.querySelector("#results");
@@ -32,6 +33,9 @@ const trackProgressFill = document.querySelector("#trackProgressFill");
 const trackTime = document.querySelector("#trackTime");
 const visualizer = document.querySelector("#visualizer");
 const visualizerContext = visualizer.getContext("2d");
+const vinylRecord = document.querySelector(".vinyl-record");
+const togglePlayback = document.querySelector("#togglePlayback");
+const transportHint = document.querySelector("#transportHint");
 
 const officialLoginUrl = "https://y.qq.com/n/ryqq_v2/profile";
 const officialHomeUrl = "https://y.qq.com/";
@@ -40,7 +44,8 @@ const visualizerState = {
   running: false,
   lastWidth: 0,
   lastHeight: 0,
-  usingRealAudio: false
+  usingRealAudio: false,
+  peakCaps: []
 };
 const audioAnalysisState = {
   context: null,
@@ -95,6 +100,15 @@ function setDrawer(open) {
   toggleResults.setAttribute("aria-expanded", String(open));
 }
 
+function setSearchOpen(open) {
+  searchForm.classList.toggle("is-open", open);
+  toggleSearch?.setAttribute("aria-expanded", String(open));
+  toggleSearch?.setAttribute("aria-label", open ? "收起搜索" : "展开搜索");
+  if (open) {
+    window.requestAnimationFrame(() => keyword.focus());
+  }
+}
+
 function formatDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const minute = Math.floor(seconds / 60);
@@ -111,6 +125,18 @@ function updateTrackProgress() {
   trackProgress.setAttribute("aria-valuenow", String(Math.round(percent)));
   trackProgress.setAttribute("aria-valuetext", `${formatDuration(Math.floor(current))} / ${formatDuration(Math.floor(duration))}`);
   trackTime.textContent = `${formatDuration(Math.floor(current))} / ${formatDuration(Math.floor(duration))}`;
+  updateTransportControl();
+}
+
+function updateTransportControl() {
+  if (!togglePlayback || !transportHint) return;
+  const canToggle = Boolean(player.currentSrc || player.src);
+  const playing = canToggle && !player.paused && !player.ended;
+  togglePlayback.disabled = !canToggle;
+  togglePlayback.classList.toggle("is-playing", playing);
+  togglePlayback.setAttribute("aria-label", playing ? "暂停" : "播放");
+  togglePlayback.querySelector(".transport-icon").textContent = playing ? "Ⅱ" : "▶";
+  transportHint.textContent = canToggle ? (playing ? "暂停" : "播放") : "选择歌曲后播放";
 }
 
 function seekByPointer(event) {
@@ -133,6 +159,11 @@ function seekByOffset(seconds) {
 
 async function search(event) {
   event?.preventDefault();
+  if (!searchForm.classList.contains("is-open")) {
+    setSearchOpen(true);
+    return;
+  }
+
   const q = keyword.value.trim();
   if (!q) return;
 
@@ -160,9 +191,11 @@ async function search(event) {
           data-songmid="${escapeHtml(song.songmid)}"
           data-media-mid="${escapeHtml(song.mediaMid || "")}"
           data-title="${escapeHtml(song.songname)}"
+          data-cover-url="${escapeHtml(song.coverUrl || "")}"
         >播放</button>
       </article>
     `).join("");
+    setSearchOpen(false);
   } catch (error) {
     searchState.textContent = "搜索失败";
     results.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
@@ -173,6 +206,7 @@ async function playSong(button) {
   const songmid = button.dataset.songmid;
   const mediaMid = button.dataset.mediaMid;
   const title = button.dataset.title;
+  const coverUrl = button.dataset.coverUrl;
   if (!songmid || !mediaMid) {
     playState.textContent = "缺少播放参数";
     return;
@@ -184,6 +218,8 @@ async function playSong(button) {
   button.disabled = true;
   playState.textContent = `正在获取《${title}》播放地址`;
   currentTrack.textContent = title;
+  setVinylCover(coverUrl);
+  updateTransportControl();
 
   try {
     let payload = await getBrowserPlayUrl(songmid, mediaMid);
@@ -200,6 +236,7 @@ async function playSong(button) {
 
     const proxied = await prepareAudioSource(payload.playUrl);
     updateTrackProgress();
+    updateTransportControl();
     if (proxied) await setupAudioAnalyser();
     loadLyrics(songmid);
     await player.play();
@@ -213,6 +250,34 @@ async function playSong(button) {
   } finally {
     button.disabled = false;
   }
+}
+
+async function togglePlaybackState() {
+  if (!player.currentSrc && !player.src) return;
+
+  try {
+    if (player.paused || player.ended) {
+      await player.play();
+    } else {
+      player.pause();
+    }
+    updateTransportControl();
+  } catch (error) {
+    playState.textContent = `播放失败：${error.message}`;
+    heroState.textContent = "播放失败";
+  }
+}
+
+function setVinylCover(coverUrl) {
+  if (!vinylRecord) return;
+  if (!coverUrl) {
+    vinylRecord.classList.remove("has-cover");
+    vinylRecord.style.removeProperty("--cover-image");
+    return;
+  }
+
+  vinylRecord.classList.add("has-cover");
+  vinylRecord.style.setProperty("--cover-image", `url("${coverUrl}")`);
 }
 
 async function loadLyrics(songmid) {
@@ -528,6 +593,7 @@ function drawVisualizer() {
   const gap = Math.max(4, width / 260);
   const sidePad = -gap;
   const barWidth = (width - sidePad * 2 - gap * (bars - 1)) / bars;
+  visualizerState.peakCaps.length = bars;
 
   for (let i = 0; i < bars; i += 1) {
     const phase = i / bars;
@@ -548,6 +614,7 @@ function drawVisualizer() {
     gradient.addColorStop(1, "rgba(255, 255, 255, 0.06)");
     visualizerContext.fillStyle = gradient;
     visualizerContext.fillRect(x, y, Math.max(3, barWidth), heightValue);
+    drawPeakCap(i, x, y, baseline, barWidth, active, player.paused);
   }
 
   drawWhiteWave(width, height, baseline, active, t);
@@ -573,6 +640,74 @@ function readFrequencyBin(data, phase) {
   const current = data[index] || 0;
   const next = data[Math.min(data.length - 1, index + 1)] || 0;
   return (prev * 0.25 + current * 0.5 + next * 0.25) / 255;
+}
+
+function drawPeakCap(index, x, barTop, baseline, barWidth, active, paused) {
+  const capWidth = Math.max(4, barWidth * 0.92);
+  const capHeight = Math.max(3, Math.min(8, capWidth * 0.38));
+  const capGap = Math.max(4, capHeight * 1.15);
+  const targetY = Math.max(0, barTop - capGap - capHeight);
+  const floorY = baseline - capGap - capHeight;
+  const cap = visualizerState.peakCaps[index] || { y: floorY, hold: 0, velocity: 0, trail: [], spark: 0, lastY: floorY };
+  cap.trail ||= [];
+  cap.spark ||= 0;
+  cap.lastY ??= cap.y;
+
+  if (targetY < cap.y) {
+    const lift = cap.y - targetY;
+    cap.y = targetY;
+    cap.hold = paused ? 0 : 14;
+    cap.velocity = 0;
+    cap.spark = Math.min(1, Math.max(cap.spark, lift / Math.max(18, baseline * 0.08)));
+  } else if (cap.hold > 0) {
+    cap.hold -= 1;
+  } else {
+    cap.velocity = Math.min(cap.velocity + (paused ? 0.08 : 0.18), paused ? 1.1 : 3.4);
+    cap.y = Math.min(floorY, cap.y + cap.velocity);
+  }
+
+  const travel = Math.abs(cap.y - cap.lastY);
+  if (!paused && (travel > 0.35 || cap.spark > 0.04)) {
+    cap.trail.unshift({
+      y: cap.lastY,
+      alpha: Math.min(1, 0.42 + travel / 7 + cap.spark * 0.36)
+    });
+  }
+  cap.trail = cap.trail
+    .slice(0, 6)
+    .map((point, trailIndex) => ({
+      y: point.y,
+      alpha: point.alpha * (paused ? 0.5 : 0.74) * (1 - trailIndex * 0.08)
+    }))
+    .filter((point) => point.alpha > 0.035);
+  cap.spark *= paused ? 0.6 : 0.76;
+  cap.lastY = cap.y;
+  visualizerState.peakCaps[index] = cap;
+
+  visualizerContext.save();
+  const left = x + (barWidth - capWidth) / 2;
+  for (let trailIndex = cap.trail.length - 1; trailIndex >= 0; trailIndex -= 1) {
+    const point = cap.trail[trailIndex];
+    const fade = point.alpha * active * (1 - trailIndex / Math.max(7, cap.trail.length + 2));
+    const trailWidth = capWidth * (1 - trailIndex * 0.045);
+    const trailLeft = left + (capWidth - trailWidth) / 2;
+    visualizerContext.fillStyle = `rgba(${220 + trailIndex * 4}, ${246 + trailIndex}, 255, ${Math.min(0.45, fade * 0.34)})`;
+    visualizerContext.shadowColor = "rgba(120, 235, 255, 0.38)";
+    visualizerContext.shadowBlur = 12 + active * 12;
+    visualizerContext.fillRect(trailLeft, point.y, trailWidth, capHeight);
+  }
+
+  const sparkBoost = cap.spark * active;
+  visualizerContext.fillStyle = `rgba(255, 255, 255, ${Math.min(0.98, 0.48 + active * 0.36 + sparkBoost * 0.22)})`;
+  visualizerContext.shadowColor = sparkBoost > 0.08 ? "rgba(190, 250, 255, 0.78)" : "rgba(255, 255, 255, 0.58)";
+  visualizerContext.shadowBlur = 10 + active * 8 + sparkBoost * 18;
+  visualizerContext.fillRect(left, cap.y, capWidth, capHeight);
+
+  if (sparkBoost > 0.12) {
+    visualizerContext.fillStyle = `rgba(210, 250, 255, ${sparkBoost * 0.22})`;
+    visualizerContext.fillRect(left - capWidth * 0.18, cap.y - capHeight * 0.45, capWidth * 1.36, capHeight * 1.9);
+  }
+  visualizerContext.restore();
 }
 
 function drawGrid(width, height) {
@@ -711,6 +846,14 @@ trackProgress.addEventListener("keydown", (event) => {
 toggleResults.addEventListener("click", () => setDrawer(!state.drawerOpen));
 closeResults.addEventListener("click", () => setDrawer(false));
 searchForm.addEventListener("submit", search);
+toggleSearch?.addEventListener("click", () => setSearchOpen(!searchForm.classList.contains("is-open")));
+keyword.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    setSearchOpen(false);
+    toggleSearch?.focus();
+  }
+});
+togglePlayback?.addEventListener("click", togglePlaybackState);
 results.addEventListener("click", (event) => {
   const button = event.target.closest(".play-btn");
   if (button) playSong(button);
@@ -719,11 +862,13 @@ results.addEventListener("click", (event) => {
 player.addEventListener("pause", () => {
   heroState.textContent = "已暂停";
   updateTrackProgress();
+  updateTransportControl();
 });
 
 player.addEventListener("play", () => {
   heroState.textContent = "正在播放";
   updateTrackProgress();
+  updateTransportControl();
   startVisualizer();
 });
 
@@ -733,7 +878,10 @@ player.addEventListener("timeupdate", () => {
 });
 player.addEventListener("loadedmetadata", updateTrackProgress);
 player.addEventListener("durationchange", updateTrackProgress);
-player.addEventListener("ended", updateTrackProgress);
+player.addEventListener("ended", () => {
+  updateTrackProgress();
+  updateTransportControl();
+});
 
 player.addEventListener("error", () => {
   if (audioAnalysisState.preparingProxy) return;
@@ -752,6 +900,7 @@ player.addEventListener("error", () => {
     });
     playState.textContent = "本地频谱代理失败，已切回原始播放地址";
     visualizerMode.textContent = "模拟频谱";
+    updateTransportControl();
     return;
   }
 
@@ -759,6 +908,7 @@ player.addEventListener("error", () => {
   if (error) {
     playState.textContent = `播放失败：音频错误 code=${error.code}`;
     heroState.textContent = "播放失败";
+    updateTransportControl();
   }
 });
 
@@ -766,3 +916,4 @@ window.addEventListener("resize", resizeVisualizer);
 
 loadWeather();
 startVisualizer();
+updateTransportControl();

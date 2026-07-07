@@ -20,6 +20,9 @@
 
     <main class="stage">
       <header class="topbar" aria-hidden="true">
+        <div class="vinyl-orbit">
+          <div class="vinyl-record"></div>
+        </div>
         <div class="brand">
           <span>QQ Music Lab</span>
           <strong>播放台</strong>
@@ -36,8 +39,15 @@
           <div id="lyricsList" class="lyrics-list"></div>
         </section>
         <p id="playState" class="play-state">播放状态会显示在这里</p>
+        <div class="transport-controls" aria-label="播放控制">
+          <button id="togglePlayback" class="transport-button" type="button" disabled aria-label="播放">
+            <span class="transport-icon" aria-hidden="true">▶</span>
+          </button>
+          <span id="transportHint" class="transport-hint">选择歌曲后播放</span>
+        </div>
 
         <form id="searchForm" class="search-form">
+          <button id="toggleSearch" class="search-toggle" type="button" aria-label="展开搜索" aria-expanded="false"></button>
           <input id="keyword" name="keyword" placeholder="搜索歌曲 / 歌手 / 专辑" value="周杰伦" autocomplete="off">
           <button type="submit">搜索</button>
           <button id="toggleResults" type="button" aria-expanded="false">结果</button>

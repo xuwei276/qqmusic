@@ -434,6 +434,8 @@ app.get("/api/search", async (req, res, next) => {
         mediaMid: song.strMediaMid || song.media_mid,
         songname: song.songname,
         albumname: song.albumname,
+        albummid: song.albummid,
+        coverUrl: song.albummid ? `https://y.qq.com/music/photo_new/T002R300x300M000${song.albummid}.jpg` : "",
         interval: song.interval,
         singers: (song.singer || []).map((item) => item.name),
         payplay: song.pay?.payplay,
