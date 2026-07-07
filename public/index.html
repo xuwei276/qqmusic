@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QQ 音乐播放台</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <div class="wallpaper" aria-hidden="true"></div>
+    <canvas id="visualizer" class="visualizer-field" width="1440" height="900" aria-label="音乐柱状频谱可视化"></canvas>
+
+    <section class="weather-card" aria-label="天气">
+      <div class="weather-icon">☁</div>
+      <div>
+        <strong>Taiwan</strong>
+        <span>06:00, Cloudy</span>
+      </div>
+    </section>
+
+    <main class="stage">
+      <header class="topbar" aria-hidden="true">
+        <div class="brand">
+          <span>QQ Music Lab</span>
+          <strong>播放台</strong>
+        </div>
+      </header>
+
+      <section class="centerpiece">
+        <p id="loginState" class="status-pill">使用 QQ 音乐官方页登录后播放</p>
+        <h1 id="currentTrack">搜索一首歌</h1>
+        <section class="lyrics-panel" aria-label="歌词">
+          <p id="pinyinLyric" class="pinyin-lyric"></p>
+          <p id="currentLyric" class="current-lyric">歌词会在播放时显示</p>
+          <p id="nextLyric" class="next-lyric"></p>
+          <div id="lyricsList" class="lyrics-list"></div>
+        </section>
+        <p id="playState" class="play-state">播放状态会显示在这里</p>
+
+        <form id="searchForm" class="search-form">
+          <input id="keyword" name="keyword" placeholder="搜索歌曲 / 歌手 / 专辑" value="周杰伦" autocomplete="off">
+          <button type="submit">搜索</button>
+          <button id="toggleResults" type="button" aria-expanded="false">结果</button>
+        </form>
+
+        <audio id="player" preload="metadata"></audio>
+      </section>
+    </main>
+
+    <aside id="resultsDrawer" class="results-drawer" aria-label="搜索结果">
+      <div class="drawer-head">
+        <div>
+          <span>Library</span>
+          <strong id="searchState">待搜索</strong>
+        </div>
+        <button id="closeResults" type="button" aria-label="关闭结果">关闭</button>
+      </div>
+      <nav class="login-actions" aria-label="登录">
+        <button id="officialLogin" type="button">官方页登录</button>
+        <button id="officialHome" type="button">QQ 音乐首页</button>
+        <button id="checkOfficialLogin" type="button">我已登录</button>
+      </nav>
+      <div id="results" class="results"></div>
+    </aside>
+
+    <footer class="visualizer-status">
+      <div
+        id="trackProgress"
+        class="track-progress"
+        role="slider"
+        tabindex="0"
+        aria-label="歌曲进度"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+      >
+        <span id="trackProgressFill"></span>
+      </div>
+      <div class="visualizer-meta">
+        <span id="visualizerMode">柱状频谱</span>
+        <strong>
+          <span id="heroState">等待播放</span>
+          <span id="trackTime">0:00 / 0:00</span>
+        </strong>
+      </div>
+    </footer>
+
+    <pre id="loginLog" class="sr-log" aria-live="polite"></pre>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

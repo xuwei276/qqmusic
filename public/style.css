@@ -1,0 +1,498 @@
+:root {
+  color-scheme: dark;
+  --paper: #ffffff;
+  --muted: rgba(255, 255, 255, 0.76);
+  --cyan: #28c9d5;
+  --pink: #df4086;
+  --lime: #c9ff8c;
+  --ink: #05080a;
+  font-family: "Microsoft YaHei", "PingFang SC", Inter, Arial, sans-serif;
+  color: var(--paper);
+  background: var(--ink);
+}
+
+@font-face {
+  font-family: "Yozai Lyric";
+  src: url("/assets/fonts/Yozai-Medium.ttf") format("truetype");
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    linear-gradient(180deg, rgba(5, 8, 10, 0.04) 0%, rgba(5, 8, 10, 0.14) 48%, rgba(5, 8, 10, 0.58) 100%),
+    url("/assets/karaoke-wallpaper.png") center / cover;
+}
+
+.wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 100% 4px;
+}
+
+.visualizer-field {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100vw;
+  height: 100vh;
+  opacity: 0.56;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.stage {
+  min-height: 100vh;
+  padding: 18px 18px 108px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.brand {
+  display: none;
+}
+
+.login-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 9px;
+  margin: 0 0 18px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+button {
+  min-height: 36px;
+  border: 2px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  background: rgba(5, 8, 10, 0.42);
+  color: #fff;
+  padding: 0 14px;
+  cursor: pointer;
+  font-weight: 900;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+
+button:hover {
+  background: rgba(40, 201, 213, 0.75);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+.weather-card {
+  position: fixed;
+  z-index: 2;
+  top: 18px;
+  left: 14px;
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 7px;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.94);
+  text-shadow: 0 3px 8px rgba(0, 0, 0, 0.72);
+}
+
+.weather-icon {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.weather-card strong {
+  display: block;
+  font-size: clamp(22px, 3vw, 30px);
+  font-style: italic;
+  line-height: 1;
+}
+
+.weather-card span {
+  display: block;
+  margin-top: 4px;
+  font-size: clamp(16px, 2.4vw, 23px);
+  font-style: italic;
+  font-weight: 700;
+}
+
+.centerpiece {
+  width: min(1100px, 100%);
+  min-height: calc(100vh - 160px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  text-align: center;
+}
+
+.status-pill,
+.centerpiece h1 {
+  display: none;
+}
+
+.lyrics-panel {
+  width: min(1080px, 100%);
+  margin: 0 auto 12px;
+  padding: 0;
+  background: transparent;
+}
+
+.pinyin-lyric {
+  min-height: 20px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.96);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: clamp(10px, 1.2vw, 14px);
+  font-weight: 900;
+  letter-spacing: 0;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.72),
+    0 0 6px rgba(255, 255, 255, 0.32);
+}
+
+.current-lyric {
+  margin: 0;
+  color: #fff;
+  font-family: "Yozai Lyric", "KaiTi", "楷体", "STKaiti", "Microsoft YaHei", serif;
+  font-size: clamp(27px, 4.2vw, 50px);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: 0;
+  -webkit-text-stroke: 0.45px rgba(255, 255, 255, 0.72);
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.9),
+    0 4px 0 rgba(0, 0, 0, 0.58),
+    0 7px 14px rgba(0, 0, 0, 0.72),
+    0 0 8px rgba(255, 255, 255, 0.26);
+}
+
+.pinyin-lyric,
+.current-lyric {
+  display: flex;
+  justify-content: center;
+  align-items: end;
+  gap: clamp(3px, 0.6vw, 8px);
+  flex-wrap: nowrap;
+}
+
+.lyric-token {
+  width: clamp(30px, 5vw, 58px);
+  min-width: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.pinyin-lyric .lyric-token {
+  transform: scaleX(0.9);
+  transform-origin: center bottom;
+}
+
+.next-lyric {
+  min-height: 18px;
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-family: "Yozai Lyric", "KaiTi", "楷体", "STKaiti", "Microsoft YaHei", serif;
+  font-size: clamp(13px, 1.65vw, 16px);
+  letter-spacing: 0.04em;
+  text-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.82),
+    0 0 6px rgba(255, 255, 255, 0.18);
+}
+
+.lyrics-list {
+  display: none;
+}
+
+.play-state {
+  min-height: 24px;
+  margin: 0 0 10px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  text-shadow: 0 3px 7px rgba(0, 0, 0, 0.75);
+}
+
+.search-form {
+  width: min(640px, 100%);
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  padding: 7px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(12px);
+}
+
+input {
+  min-width: 0;
+  height: 42px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 14px;
+  outline: none;
+  color: #fff;
+  background: transparent;
+}
+
+input::placeholder {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.search-form button[type="submit"] {
+  background: var(--cyan);
+}
+
+audio {
+  display: none;
+}
+
+.visualizer-status {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  height: 42px;
+  background: linear-gradient(180deg, transparent, rgba(5, 8, 10, 0.32));
+  pointer-events: none;
+}
+
+.track-progress {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 26px;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 4px,
+    rgba(255, 255, 255, 0.12) 4px,
+    rgba(255, 255, 255, 0.12) 6px,
+    transparent 6px
+  );
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.track-progress span {
+  display: block;
+  width: 0%;
+  height: 2px;
+  margin-top: 4px;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.54);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.22);
+  transition: width 160ms linear;
+}
+
+.track-progress::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: calc(var(--track-progress, 0%) - 3px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.62);
+  opacity: 0;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+  transition: opacity 160ms ease;
+}
+
+.track-progress:hover::after,
+.track-progress:focus-visible::after,
+.track-progress.is-dragging::after {
+  opacity: 1;
+}
+
+.track-progress:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.28);
+  outline-offset: 4px;
+}
+
+.visualizer-meta {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.58);
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 11px;
+}
+
+.visualizer-meta strong {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 700;
+}
+
+#trackTime {
+  color: rgba(255, 255, 255, 0.56);
+  font-weight: 500;
+}
+
+.results-drawer {
+  position: fixed;
+  z-index: 4;
+  top: 0;
+  right: 0;
+  width: min(520px, 100vw);
+  height: 100vh;
+  padding: 22px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(5, 8, 10, 0.88);
+  backdrop-filter: blur(24px);
+  transform: translateX(102%);
+  transition: transform 220ms ease;
+  box-shadow: -30px 0 80px rgba(0, 0, 0, 0.38);
+}
+
+.results-drawer.is-open {
+  transform: translateX(0);
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.drawer-head span {
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.drawer-head strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+}
+
+.results {
+  height: calc(100vh - 190px);
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.song {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 14px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.song:hover {
+  border-color: rgba(40, 201, 213, 0.56);
+}
+
+.song a {
+  color: #fff;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.song p,
+.song span,
+.song time {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+}
+
+.song p {
+  margin-top: 5px;
+}
+
+.song span {
+  grid-column: 1 / 2;
+}
+
+.song time {
+  justify-self: end;
+  font-family: Consolas, "SFMono-Regular", monospace;
+}
+
+.play-btn {
+  grid-row: span 2;
+  min-width: 68px;
+  color: #fff;
+  background: var(--cyan);
+}
+
+.error {
+  color: #ff9fb0;
+}
+
+.sr-log {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+@media (max-width: 760px) {
+  .weather-card {
+    transform: scale(0.78);
+    transform-origin: top left;
+  }
+
+  .search-form {
+    grid-template-columns: 1fr;
+    border-radius: 18px;
+  }
+}

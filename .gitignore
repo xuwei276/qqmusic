@@ -1,0 +1,14 @@
+node_modules/
+certs/
+tmp/
+.env
+.env.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.local
+Thumbs.db
+.DS_Store
+public/assets/generated-*/
+public/assets/music-wallpaper.png
