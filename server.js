@@ -129,6 +129,44 @@ function assertAllowedAudioUrl(rawUrl) {
   return target;
 }
 
+function weatherCodeToText(code) {
+  const weatherMap = new Map([
+    [0, "Clear"],
+    [1, "Mainly clear"],
+    [2, "Partly cloudy"],
+    [3, "Cloudy"],
+    [45, "Fog"],
+    [48, "Rime fog"],
+    [51, "Light drizzle"],
+    [53, "Drizzle"],
+    [55, "Heavy drizzle"],
+    [61, "Light rain"],
+    [63, "Rain"],
+    [65, "Heavy rain"],
+    [71, "Light snow"],
+    [73, "Snow"],
+    [75, "Heavy snow"],
+    [80, "Rain showers"],
+    [81, "Rain showers"],
+    [82, "Heavy showers"],
+    [95, "Thunderstorm"],
+    [96, "Thunderstorm"],
+    [99, "Thunderstorm"]
+  ]);
+  return weatherMap.get(Number(code)) || "Weather";
+}
+
+function weatherCodeToIcon(code, isDay = 1) {
+  const value = Number(code);
+  if (value === 0) return Number(isDay) ? "☀" : "☾";
+  if ([1, 2].includes(value)) return Number(isDay) ? "⛅" : "☁";
+  if ([3, 45, 48].includes(value)) return "☁";
+  if ((value >= 51 && value <= 67) || (value >= 80 && value <= 82)) return "☔";
+  if (value >= 71 && value <= 77) return "❄";
+  if (value >= 95) return "⚡";
+  return "☁";
+}
+
 class CookieJar {
   constructor() {
     this.cookies = new Map();
@@ -526,6 +564,62 @@ app.get("/api/audio-proxy", async (req, res, next) => {
     }
 
     Readable.fromWeb(upstream.body).on("error", next).pipe(res);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/weather", async (req, res, next) => {
+  try {
+    const city = String(req.query.city || "Shanghai").trim();
+    const geoUrl = new URL("https://geocoding-api.open-meteo.com/v1/search");
+    geoUrl.search = new URLSearchParams({
+      name: city,
+      count: "1",
+      language: "zh",
+      format: "json"
+    }).toString();
+
+    const geoResponse = await fetch(geoUrl, {
+      headers: { "user-agent": USER_AGENT, "accept": "application/json" }
+    });
+    const geoPayload = await geoResponse.json();
+    const place = geoPayload?.results?.[0];
+    if (!place) {
+      res.status(404).json({ error: "没有找到该城市天气。" });
+      return;
+    }
+
+    const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
+    weatherUrl.search = new URLSearchParams({
+      latitude: String(place.latitude),
+      longitude: String(place.longitude),
+      current: "temperature_2m,weather_code,is_day",
+      timezone: "auto"
+    }).toString();
+
+    const weatherResponse = await fetch(weatherUrl, {
+      headers: { "user-agent": USER_AGENT, "accept": "application/json" }
+    });
+    const weatherPayload = await weatherResponse.json();
+    const current = weatherPayload.current || {};
+    const code = current.weather_code;
+
+    res.json({
+      city: place.name || city,
+      country: place.country || "",
+      admin1: place.admin1 || "",
+      latitude: place.latitude,
+      longitude: place.longitude,
+      time: current.time || "",
+      temperature: current.temperature_2m,
+      temperatureUnit: weatherPayload.current_units?.temperature_2m || "°C",
+      weatherCode: code,
+      description: weatherCodeToText(code),
+      icon: weatherCodeToIcon(code, current.is_day),
+      source: "Open-Meteo",
+      sourceUrl: "https://open-meteo.com/"
+    });
   } catch (error) {
     next(error);
   }

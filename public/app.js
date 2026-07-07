@@ -5,6 +5,9 @@ const state = {
 
 const loginState = document.querySelector("#loginState");
 const loginLog = document.querySelector("#loginLog");
+const weatherIcon = document.querySelector("#weatherIcon");
+const weatherCity = document.querySelector("#weatherCity");
+const weatherText = document.querySelector("#weatherText");
 const officialLogin = document.querySelector("#officialLogin");
 const officialHome = document.querySelector("#officialHome");
 const checkOfficialLogin = document.querySelector("#checkOfficialLogin");
@@ -63,6 +66,27 @@ async function readJson(response) {
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || "请求失败");
   return payload;
+}
+
+async function loadWeather(city = "Shanghai") {
+  try {
+    const payload = await readJson(await fetch(`/api/weather?city=${encodeURIComponent(city)}`));
+    const displayCity = payload.admin1 && payload.admin1 !== payload.city
+      ? `${payload.city}`
+      : payload.city;
+    const time = payload.time
+      ? new Date(payload.time).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+      : "--:--";
+
+    weatherIcon.textContent = payload.icon || "☁";
+    weatherCity.textContent = displayCity || city;
+    weatherText.textContent = `${time}, ${Math.round(payload.temperature)}${payload.temperatureUnit || "°C"}, ${payload.description}`;
+  } catch (error) {
+    weatherIcon.textContent = "☁";
+    weatherCity.textContent = city;
+    weatherText.textContent = "Weather unavailable";
+    setLog(`天气加载失败：${error.message}`);
+  }
 }
 
 function setDrawer(open) {
@@ -740,4 +764,5 @@ player.addEventListener("error", () => {
 
 window.addEventListener("resize", resizeVisualizer);
 
+loadWeather();
 startVisualizer();
