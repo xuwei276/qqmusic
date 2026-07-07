@@ -28,6 +28,7 @@ const currentLyric = document.querySelector("#currentLyric");
 const nextLyric = document.querySelector("#nextLyric");
 const lyricsList = document.querySelector("#lyricsList");
 const visualizerMode = document.querySelector("#visualizerMode");
+const toggleVisualizer = document.querySelector("#toggleVisualizer");
 const trackProgress = document.querySelector("#trackProgress");
 const trackProgressFill = document.querySelector("#trackProgressFill");
 const trackTime = document.querySelector("#trackTime");
@@ -45,7 +46,8 @@ const visualizerState = {
   lastWidth: 0,
   lastHeight: 0,
   usingRealAudio: false,
-  peakCaps: []
+  peakCaps: [],
+  mode: readVisualizerMode()
 };
 const audioAnalysisState = {
   context: null,
@@ -62,6 +64,39 @@ const lyricState = {
 const seekState = {
   dragging: false
 };
+
+function readVisualizerMode() {
+  try {
+    const mode = localStorage.getItem("qqMusicVisualizerMode");
+    return ["classic", "liquidGlass", "radialWave"].includes(mode) ? mode : "liquidGlass";
+  } catch {
+    return "liquidGlass";
+  }
+}
+
+function setVisualizerMode(mode) {
+  visualizerState.mode = ["classic", "liquidGlass", "radialWave"].includes(mode) ? mode : "liquidGlass";
+  try {
+    localStorage.setItem("qqMusicVisualizerMode", visualizerState.mode);
+  } catch {
+    // Ignore storage failures in private or restricted browsing contexts.
+  }
+  updateVisualizerModeLabel(false);
+}
+
+function updateVisualizerModeLabel(hasRealFrequency) {
+  const modeLabel = {
+    classic: "经典频谱",
+    liquidGlass: "液态玻璃",
+    radialWave: "环形声波"
+  }[visualizerState.mode] || "液态玻璃";
+  const sourceLabel = hasRealFrequency ? "真实频谱" : (player.paused ? "低频待机" : "模拟频谱");
+  visualizerMode.textContent = `${modeLabel} · ${sourceLabel}`;
+  if (toggleVisualizer) {
+    toggleVisualizer.textContent = modeLabel;
+    toggleVisualizer.setAttribute("aria-label", `切换可视化模式，当前为${modeLabel}`);
+  }
+}
 
 function setLog(data) {
   loginLog.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
@@ -580,13 +615,27 @@ function drawVisualizer() {
   resizeVisualizer();
   const width = visualizer.width;
   const height = visualizer.height;
-  const baseline = height * 0.82;
   const active = player.paused ? 0.2 : 1;
   const audioTime = Number.isFinite(player.currentTime) ? player.currentTime : 0;
   const t = audioTime * 3.2 + visualizerState.frame * (player.paused ? 0.008 : 0.012);
   const realFrequencyData = getRealFrequencyData();
   visualizerContext.clearRect(0, 0, width, height);
 
+  if (visualizerState.mode === "classic") {
+    drawClassicVisualizer(width, height, active, audioTime, t, realFrequencyData);
+  } else if (visualizerState.mode === "radialWave") {
+    drawRadialWaveVisualizer(width, height, active, audioTime, t, realFrequencyData);
+  } else {
+    drawLiquidGlassVisualizer(width, height, active, audioTime, t, realFrequencyData);
+  }
+
+  updateVisualizerModeLabel(Boolean(realFrequencyData));
+  visualizerState.frame += 1;
+  window.requestAnimationFrame(drawVisualizer);
+}
+
+function drawClassicVisualizer(width, height, active, audioTime, t, realFrequencyData) {
+  const baseline = height * 0.82;
   drawGrid(width, height);
 
   const bars = Math.max(56, Math.floor(width / 18));
@@ -618,10 +667,384 @@ function drawVisualizer() {
   }
 
   drawWhiteWave(width, height, baseline, active, t);
+}
 
-  visualizerMode.textContent = realFrequencyData ? "真实频谱" : (player.paused ? "低频待机" : "模拟频谱");
-  visualizerState.frame += 1;
-  window.requestAnimationFrame(drawVisualizer);
+function drawLiquidGlassVisualizer(width, height, active, audioTime, t, realFrequencyData) {
+  const surfaceTop = height * 0.46;
+  const baseline = height * 0.75;
+  const energy = getSpectrumEnergy(realFrequencyData, audioTime, t);
+  const lowEnergy = getSpectrumBand(realFrequencyData, 0, 0.18, audioTime, t, 0.9);
+  const midEnergy = getSpectrumBand(realFrequencyData, 0.18, 0.58, audioTime, t, 1.6);
+  const highEnergy = getSpectrumBand(realFrequencyData, 0.58, 1, audioTime, t, 2.4);
+  const playBoost = player.paused ? 0.36 : 1;
+
+  drawGlassBackdrop(width, height, surfaceTop, lowEnergy, playBoost, t);
+  drawGlassTerrain(width, height, surfaceTop, baseline, t, lowEnergy, midEnergy, highEnergy, playBoost);
+  drawGlassWaveLayer(width, height, surfaceTop + height * 0.035, baseline + height * 0.035, t, lowEnergy, midEnergy, highEnergy, 0, playBoost);
+  drawGlassWaveLayer(width, height, surfaceTop + height * 0.045, baseline + height * 0.055, t * 0.92 + 2.1, midEnergy, highEnergy, lowEnergy, 1, playBoost);
+  drawGlassWaveLayer(width, height, surfaceTop + height * 0.085, baseline + height * 0.105, t * 0.78 + 4.4, highEnergy, lowEnergy, midEnergy, 2, playBoost);
+  drawGlassRefractionLines(width, height, surfaceTop, baseline, t, energy, playBoost);
+  drawGlassCaustics(width, height, baseline, t, lowEnergy, midEnergy, playBoost);
+}
+
+function drawRadialWaveVisualizer(width, height, active, audioTime, t, realFrequencyData) {
+  const energy = getSpectrumEnergy(realFrequencyData, audioTime, t);
+  const lowEnergy = getSpectrumBand(realFrequencyData, 0, 0.18, audioTime, t, 0.9);
+  const midEnergy = getSpectrumBand(realFrequencyData, 0.18, 0.58, audioTime, t, 1.6);
+  const highEnergy = getSpectrumBand(realFrequencyData, 0.58, 1, audioTime, t, 2.4);
+  const playBoost = player.paused ? 0.34 : 1;
+  const center = getRadialWaveCenter(width, height);
+
+  drawRadialAmbientGlow(width, height, center, lowEnergy, playBoost, t);
+  drawRadialRings(width, height, center, t, lowEnergy, midEnergy, highEnergy, playBoost);
+  drawRadialGlassSpokes(width, height, center, t, energy, highEnergy, playBoost);
+  drawRadialBottomEcho(width, height, t, lowEnergy, midEnergy, playBoost);
+}
+
+function getRadialWaveCenter(width, height) {
+  const cssX = Math.max(92, window.innerWidth - Math.min(108, Math.max(72, window.innerWidth * 0.08)) * 0.5 - 20);
+  const cssY = 18 + Math.min(108, Math.max(72, window.innerWidth * 0.08)) * 0.5;
+  const scaleX = width / Math.max(1, visualizer.clientWidth);
+  const scaleY = height / Math.max(1, visualizer.clientHeight);
+  return {
+    x: cssX * scaleX,
+    y: cssY * scaleY
+  };
+}
+
+function drawRadialAmbientGlow(width, height, center, lowEnergy, active, t) {
+  visualizerContext.save();
+  const radius = Math.min(width, height) * (0.18 + lowEnergy * 0.16);
+  const glow = visualizerContext.createRadialGradient(center.x, center.y, radius * 0.12, center.x, center.y, radius * 2.4);
+  glow.addColorStop(0, `rgba(235, 255, 255, ${0.12 + lowEnergy * 0.16 * active})`);
+  glow.addColorStop(0.34, `rgba(40, 201, 213, ${0.045 + lowEnergy * 0.09 * active})`);
+  glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+  visualizerContext.fillStyle = glow;
+  visualizerContext.fillRect(0, 0, width, height);
+
+  const sweep = visualizerContext.createLinearGradient(center.x - radius, center.y - radius, center.x + radius * 2, center.y + radius * 2);
+  sweep.addColorStop(0, "rgba(255, 255, 255, 0)");
+  sweep.addColorStop(0.46 + Math.sin(t * 0.24) * 0.08, `rgba(255, 255, 255, ${0.04 + lowEnergy * 0.08})`);
+  sweep.addColorStop(1, "rgba(255, 255, 255, 0)");
+  visualizerContext.globalCompositeOperation = "screen";
+  visualizerContext.fillStyle = sweep;
+  visualizerContext.fillRect(0, 0, width, height);
+  visualizerContext.restore();
+}
+
+function drawRadialRings(width, height, center, t, lowEnergy, midEnergy, highEnergy, active) {
+  const baseRadius = Math.min(width, height) * 0.09;
+  const maxRadius = Math.min(width, height) * 0.62;
+  const rings = 7;
+  visualizerContext.save();
+  visualizerContext.globalCompositeOperation = "screen";
+
+  for (let ring = 0; ring < rings; ring += 1) {
+    const travel = (t * (0.055 + lowEnergy * 0.035) + ring / rings) % 1;
+    const radius = baseRadius + travel * maxRadius * (0.92 + lowEnergy * 0.18);
+    const alpha = (1 - travel) * (0.14 + lowEnergy * 0.34) * active;
+    const wobble = 0.016 + highEnergy * 0.026;
+    const points = 150;
+
+    visualizerContext.beginPath();
+    for (let i = 0; i <= points; i += 1) {
+      const phase = i / points;
+      const angle = phase * Math.PI * 2;
+      const ripple =
+        Math.sin(angle * 5 + t * 1.1 + ring) * radius * wobble +
+        Math.sin(angle * 13 - t * 1.7) * radius * highEnergy * 0.008;
+      const r = radius + ripple;
+      const x = center.x + Math.cos(angle) * r;
+      const y = center.y + Math.sin(angle) * r;
+      if (i === 0) visualizerContext.moveTo(x, y);
+      else visualizerContext.lineTo(x, y);
+    }
+
+    const lineWidth = Math.max(1, width / 900) * (1.2 + midEnergy * 2.6) * (1 - travel * 0.45);
+    visualizerContext.strokeStyle = `rgba(235, 255, 255, ${Math.min(0.46, alpha)})`;
+    visualizerContext.lineWidth = lineWidth;
+    visualizerContext.shadowColor = "rgba(130, 235, 255, 0.34)";
+    visualizerContext.shadowBlur = 12 + lowEnergy * 26 * active;
+    visualizerContext.stroke();
+
+    if (ring % 2 === 0) {
+      visualizerContext.strokeStyle = `rgba(78, 218, 236, ${Math.min(0.22, alpha * 0.58)})`;
+      visualizerContext.lineWidth = Math.max(1, lineWidth * 0.42);
+      visualizerContext.stroke();
+    }
+  }
+  visualizerContext.restore();
+}
+
+function drawRadialGlassSpokes(width, height, center, t, energy, highEnergy, active) {
+  const spokes = 32;
+  const inner = Math.min(width, height) * 0.12;
+  const outer = Math.min(width, height) * (0.34 + energy * 0.34);
+  visualizerContext.save();
+  visualizerContext.globalCompositeOperation = "screen";
+  for (let i = 0; i < spokes; i += 1) {
+    const phase = i / spokes;
+    const flicker = Math.pow(Math.sin(t * 1.4 + i * 1.77) * 0.5 + 0.5, 3);
+    if (flicker < 0.18 && highEnergy < 0.34) continue;
+    const angle = phase * Math.PI * 2 + Math.sin(t * 0.18) * 0.08;
+    const start = inner + flicker * 18;
+    const end = outer * (0.64 + flicker * 0.36);
+    const x1 = center.x + Math.cos(angle) * start;
+    const y1 = center.y + Math.sin(angle) * start;
+    const x2 = center.x + Math.cos(angle) * end;
+    const y2 = center.y + Math.sin(angle) * end;
+    const gradient = visualizerContext.createLinearGradient(x1, y1, x2, y2);
+    gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+    gradient.addColorStop(0.38, `rgba(230, 255, 255, ${(0.035 + highEnergy * 0.12) * active * flicker})`);
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    visualizerContext.strokeStyle = gradient;
+    visualizerContext.lineWidth = Math.max(1, width / 1200);
+    visualizerContext.beginPath();
+    visualizerContext.moveTo(x1, y1);
+    visualizerContext.lineTo(x2, y2);
+    visualizerContext.stroke();
+  }
+  visualizerContext.restore();
+}
+
+function drawRadialBottomEcho(width, height, t, lowEnergy, midEnergy, active) {
+  const baseline = height * 0.82;
+  const points = 96;
+  visualizerContext.save();
+  visualizerContext.globalCompositeOperation = "screen";
+  for (let layer = 0; layer < 3; layer += 1) {
+    visualizerContext.beginPath();
+    for (let i = 0; i <= points; i += 1) {
+      const phase = i / points;
+      const x = width * phase;
+      const y = baseline + layer * height * 0.035
+        + Math.sin(t * (0.45 + layer * 0.1) + phase * Math.PI * (3.2 + layer)) * height * (0.018 + lowEnergy * 0.028)
+        + Math.sin(t * 1.2 + phase * Math.PI * 14) * height * midEnergy * 0.006;
+      if (i === 0) visualizerContext.moveTo(x, y);
+      else visualizerContext.lineTo(x, y);
+    }
+    visualizerContext.strokeStyle = `rgba(210, 250, 255, ${(0.06 + lowEnergy * 0.12) * active * (1 - layer * 0.22)})`;
+    visualizerContext.lineWidth = Math.max(1, width / 820) * (1 + layer * 0.36);
+    visualizerContext.shadowColor = "rgba(120, 235, 255, 0.22)";
+    visualizerContext.shadowBlur = 10 + lowEnergy * 18;
+    visualizerContext.stroke();
+  }
+  visualizerContext.restore();
+}
+
+function getSpectrumEnergy(realFrequencyData, audioTime, t) {
+  if (realFrequencyData) {
+    let sum = 0;
+    const limit = Math.min(realFrequencyData.length, 96);
+    for (let i = 0; i < limit; i += 1) sum += realFrequencyData[i] / 255;
+    return sum / limit;
+  }
+
+  return 0.42
+    + 0.24 * (Math.sin(t * 0.92) * 0.5 + 0.5)
+    + 0.18 * (Math.sin(audioTime * 2.7 + 1.2) * 0.5 + 0.5);
+}
+
+function getSpectrumBand(realFrequencyData, start, end, audioTime, t, phaseOffset) {
+  if (realFrequencyData) {
+    const from = Math.max(0, Math.floor(realFrequencyData.length * start));
+    const to = Math.max(from + 1, Math.floor(realFrequencyData.length * end));
+    let sum = 0;
+    for (let i = from; i < to; i += 1) sum += realFrequencyData[i] / 255;
+    return sum / (to - from);
+  }
+
+  return 0.34
+    + 0.28 * (Math.sin(t * (0.72 + start) + phaseOffset) * 0.5 + 0.5)
+    + 0.16 * (Math.sin(audioTime * (1.8 + end) + phaseOffset * 1.7) * 0.5 + 0.5);
+}
+
+function drawGlassBackdrop(width, height, surfaceTop, lowEnergy, active, t) {
+  const glow = visualizerContext.createRadialGradient(
+    width * 0.5,
+    height * (0.92 - lowEnergy * 0.08),
+    height * 0.04,
+    width * 0.5,
+    height * 0.94,
+    width * (0.52 + lowEnergy * 0.16)
+  );
+  glow.addColorStop(0, `rgba(210, 248, 255, ${0.09 + lowEnergy * active * 0.16})`);
+  glow.addColorStop(0.42, `rgba(40, 201, 213, ${0.035 + lowEnergy * active * 0.08})`);
+  glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+  visualizerContext.save();
+  visualizerContext.fillStyle = glow;
+  visualizerContext.fillRect(0, surfaceTop, width, height - surfaceTop);
+
+  const sweep = visualizerContext.createLinearGradient(0, surfaceTop, width, height);
+  sweep.addColorStop(0, "rgba(255, 255, 255, 0)");
+  sweep.addColorStop(0.48 + Math.sin(t * 0.22) * 0.12, `rgba(255, 255, 255, ${0.05 + lowEnergy * 0.06})`);
+  sweep.addColorStop(1, "rgba(255, 255, 255, 0)");
+  visualizerContext.fillStyle = sweep;
+  visualizerContext.fillRect(0, surfaceTop, width, height - surfaceTop);
+  visualizerContext.restore();
+}
+
+function drawGlassTerrain(width, height, surfaceTop, baseline, t, lowEnergy, midEnergy, highEnergy, active) {
+  const points = 150;
+  const peakLift = height * (0.12 + lowEnergy * 0.24) * active;
+  const detailLift = height * (0.018 + highEnergy * 0.055) * active;
+  const lower = Math.min(height, baseline + height * 0.22);
+  const terrain = [];
+
+  for (let i = 0; i <= points; i += 1) {
+    const phase = i / points;
+    const x = width * phase;
+    const broad =
+      Math.sin(t * 0.34 + phase * Math.PI * 2.15) * 0.5 +
+      Math.sin(t * 0.52 + phase * Math.PI * 3.8 + 1.4) * 0.32 +
+      Math.sin(t * 0.24 + phase * Math.PI * 1.12 + 2.8) * 0.42;
+    const ridges =
+      Math.sin(t * 1.05 + phase * Math.PI * 12.5) * detailLift +
+      Math.sin(t * 1.42 + phase * Math.PI * 23.0) * detailLift * 0.36;
+    const crest = Math.pow(Math.sin(t * 0.5 + phase * Math.PI * 2.0) * 0.5 + 0.5, 2.5) * height * midEnergy * 0.06 * active;
+    const y = baseline - peakLift * (0.62 + broad) - crest + ridges;
+    terrain.push({ x, y });
+  }
+
+  visualizerContext.save();
+  visualizerContext.beginPath();
+  terrain.forEach((point, index) => {
+    if (index === 0) visualizerContext.moveTo(point.x, point.y);
+    else {
+      const previous = terrain[index - 1];
+      const cpX = (previous.x + point.x) / 2;
+      visualizerContext.quadraticCurveTo(cpX, previous.y, point.x, point.y);
+    }
+  });
+  visualizerContext.lineTo(width, lower);
+  visualizerContext.lineTo(0, lower);
+  visualizerContext.closePath();
+
+  const body = visualizerContext.createLinearGradient(0, surfaceTop, 0, lower);
+  body.addColorStop(0, `rgba(245, 255, 255, ${0.22 + lowEnergy * 0.18 * active})`);
+  body.addColorStop(0.24, `rgba(170, 240, 255, ${0.12 + midEnergy * 0.16 * active})`);
+  body.addColorStop(0.58, `rgba(49, 201, 217, ${0.035 + lowEnergy * 0.08 * active})`);
+  body.addColorStop(1, "rgba(255, 255, 255, 0.012)");
+  visualizerContext.fillStyle = body;
+  visualizerContext.shadowColor = "rgba(185, 248, 255, 0.34)";
+  visualizerContext.shadowBlur = 22 + lowEnergy * 36 * active;
+  visualizerContext.fill();
+
+  visualizerContext.globalCompositeOperation = "screen";
+  visualizerContext.beginPath();
+  terrain.forEach((point, index) => {
+    if (index === 0) visualizerContext.moveTo(point.x, point.y);
+    else visualizerContext.lineTo(point.x, point.y);
+  });
+  visualizerContext.strokeStyle = `rgba(250, 255, 255, ${0.34 + lowEnergy * 0.38 * active})`;
+  visualizerContext.lineWidth = Math.max(1.4, width / 620);
+  visualizerContext.shadowColor = "rgba(235, 255, 255, 0.48)";
+  visualizerContext.shadowBlur = 12 + highEnergy * 18 * active;
+  visualizerContext.stroke();
+
+  visualizerContext.beginPath();
+  terrain.forEach((point, index) => {
+    const offsetY = height * (0.022 + midEnergy * 0.032) + Math.sin(t * 0.86 + index * 0.11) * height * 0.004;
+    if (index === 0) visualizerContext.moveTo(point.x, point.y + offsetY);
+    else visualizerContext.lineTo(point.x, point.y + offsetY);
+  });
+  visualizerContext.strokeStyle = `rgba(120, 235, 255, ${0.16 + highEnergy * 0.2 * active})`;
+  visualizerContext.lineWidth = Math.max(1, width / 980);
+  visualizerContext.shadowBlur = 10;
+  visualizerContext.stroke();
+  visualizerContext.restore();
+}
+
+function drawGlassWaveLayer(width, height, surfaceTop, baseline, t, primary, secondary, tertiary, layer, active) {
+  const points = 132;
+  const amplitude = height * (0.026 + primary * 0.072) * active * (1 - layer * 0.16);
+  const drift = t * (0.28 + layer * 0.1);
+  const alpha = (0.09 + primary * 0.12) * active * (1 - layer * 0.18);
+  const lower = Math.min(height, baseline + height * (0.18 + layer * 0.07));
+
+  visualizerContext.save();
+  visualizerContext.beginPath();
+  for (let i = 0; i <= points; i += 1) {
+    const phase = i / points;
+    const x = width * phase;
+    const glassRipple =
+      Math.sin(drift + phase * Math.PI * (2.6 + layer * 0.6)) * amplitude +
+      Math.sin(t * (0.72 + layer * 0.12) + phase * Math.PI * (8.5 + layer * 1.8)) * amplitude * (0.34 + secondary * 0.22) +
+      Math.sin(t * 1.18 + phase * Math.PI * 18.0) * amplitude * tertiary * 0.12;
+    const y = baseline - height * (0.08 + primary * 0.12) + glassRipple;
+    if (i === 0) visualizerContext.moveTo(x, y);
+    else visualizerContext.lineTo(x, y);
+  }
+  visualizerContext.lineTo(width, lower);
+  visualizerContext.lineTo(0, lower);
+  visualizerContext.closePath();
+
+  const fill = visualizerContext.createLinearGradient(0, surfaceTop, 0, lower);
+  fill.addColorStop(0, `rgba(238, 254, 255, ${alpha})`);
+  fill.addColorStop(0.42, `rgba(95, 220, 236, ${alpha * 0.42})`);
+  fill.addColorStop(1, "rgba(255, 255, 255, 0.015)");
+  visualizerContext.fillStyle = fill;
+  visualizerContext.shadowColor = "rgba(165, 242, 255, 0.22)";
+  visualizerContext.shadowBlur = 18 + primary * 24 * active;
+  visualizerContext.fill();
+
+  visualizerContext.globalCompositeOperation = "screen";
+  visualizerContext.strokeStyle = `rgba(245, 255, 255, ${0.18 + primary * 0.28 * active})`;
+  visualizerContext.lineWidth = Math.max(1, width / (720 - layer * 80));
+  visualizerContext.stroke();
+  visualizerContext.restore();
+}
+
+function drawGlassRefractionLines(width, height, surfaceTop, baseline, t, energy, active) {
+  const lines = Math.max(18, Math.floor(width / 90));
+  visualizerContext.save();
+  visualizerContext.globalCompositeOperation = "screen";
+  for (let i = 0; i < lines; i += 1) {
+    const phase = i / lines;
+    const x = width * phase + Math.sin(t * 0.36 + i * 1.9) * width * 0.018;
+    const top = surfaceTop + height * (0.04 + 0.12 * (Math.sin(t * 0.24 + i) * 0.5 + 0.5));
+    const lineHeight = height * (0.18 + energy * 0.24) * (0.65 + 0.35 * Math.sin(t * 0.7 + i * 2.4));
+    const gradient = visualizerContext.createLinearGradient(x, top, x, top + lineHeight);
+    gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+    gradient.addColorStop(0.18, `rgba(230, 255, 255, ${0.04 + energy * active * 0.12})`);
+    gradient.addColorStop(0.56, `rgba(82, 217, 235, ${0.025 + energy * active * 0.06})`);
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    visualizerContext.strokeStyle = gradient;
+    visualizerContext.lineWidth = Math.max(1, width / 980);
+    visualizerContext.beginPath();
+    visualizerContext.moveTo(x, top);
+    visualizerContext.lineTo(x + Math.sin(t + i) * 10, top + lineHeight);
+    visualizerContext.stroke();
+  }
+  visualizerContext.restore();
+}
+
+function drawGlassCaustics(width, height, baseline, t, lowEnergy, midEnergy, active) {
+  visualizerContext.save();
+  visualizerContext.globalCompositeOperation = "screen";
+  const bands = 8;
+  for (let i = 0; i < bands; i += 1) {
+    const pulseLift = Math.sin(t * 0.72 + i * 0.8) * height * lowEnergy * 0.012;
+    const y = baseline + height * (0.03 + i * 0.023) + Math.sin(t * 0.42 + i) * height * 0.012 + pulseLift;
+    const gradient = visualizerContext.createLinearGradient(0, y, width, y);
+    gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+    gradient.addColorStop(0.2 + Math.sin(t * 0.2 + i) * 0.04, `rgba(185, 246, 255, ${(0.035 + lowEnergy * 0.14) * active})`);
+    gradient.addColorStop(0.5, `rgba(255, 255, 255, ${(0.045 + midEnergy * 0.14) * active})`);
+    gradient.addColorStop(0.8 + Math.cos(t * 0.18 + i) * 0.04, `rgba(95, 220, 236, ${(0.03 + lowEnergy * 0.12) * active})`);
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    visualizerContext.strokeStyle = gradient;
+    visualizerContext.lineWidth = Math.max(1, height / 330) * (1 + i * 0.09 + lowEnergy * 0.5);
+    visualizerContext.beginPath();
+    visualizerContext.moveTo(0, y);
+    for (let x = 0; x <= width; x += width / 24) {
+      const phase = x / width;
+      const waveY = y + Math.sin(t * 0.56 + phase * Math.PI * 5 + i) * height * (0.004 + lowEnergy * 0.006);
+      visualizerContext.lineTo(x, waveY);
+    }
+    visualizerContext.stroke();
+  }
+  visualizerContext.restore();
 }
 
 function getRealFrequencyData() {
@@ -853,6 +1276,14 @@ keyword.addEventListener("keydown", (event) => {
     toggleSearch?.focus();
   }
 });
+toggleVisualizer?.addEventListener("click", () => {
+  const nextMode = {
+    liquidGlass: "radialWave",
+    radialWave: "classic",
+    classic: "liquidGlass"
+  }[visualizerState.mode] || "liquidGlass";
+  setVisualizerMode(nextMode);
+});
 togglePlayback?.addEventListener("click", togglePlaybackState);
 results.addEventListener("click", (event) => {
   const button = event.target.closest(".play-btn");
@@ -915,5 +1346,6 @@ player.addEventListener("error", () => {
 window.addEventListener("resize", resizeVisualizer);
 
 loadWeather();
+updateVisualizerModeLabel(false);
 startVisualizer();
 updateTransportControl();

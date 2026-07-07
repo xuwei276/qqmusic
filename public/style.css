@@ -566,6 +566,31 @@ audio {
   font-size: 11px;
 }
 
+.visualizer-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.visualizer-toggle {
+  min-height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255, 255, 255, 0.66);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: none;
+  pointer-events: auto;
+}
+
+.visualizer-toggle:hover {
+  background: rgba(40, 201, 213, 0.16);
+  color: rgba(255, 255, 255, 0.86);
+}
+
 .visualizer-meta strong {
   display: inline-flex;
   gap: 12px;
