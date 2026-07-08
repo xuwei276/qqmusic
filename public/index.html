@@ -46,31 +46,50 @@
           <span id="transportHint" class="transport-hint">选择歌曲后播放</span>
         </div>
 
-        <form id="searchForm" class="search-form">
-          <button id="toggleSearch" class="search-toggle" type="button" aria-label="展开搜索" aria-expanded="false"></button>
-          <input id="keyword" name="keyword" placeholder="搜索歌曲 / 歌手 / 专辑" value="周杰伦" autocomplete="off">
-          <button type="submit">搜索</button>
-          <button id="toggleResults" type="button" aria-expanded="false">结果</button>
-        </form>
-
         <audio id="player" preload="metadata"></audio>
       </section>
     </main>
 
-    <aside id="resultsDrawer" class="results-drawer" aria-label="搜索结果">
+    <nav class="side-rail" aria-label="播放台栏目">
+      <button id="toggleSearch" class="rail-button" type="button" aria-label="展开搜索" aria-expanded="false" data-panel="search">
+        <span class="rail-icon rail-icon-search" aria-hidden="true"></span>
+      </button>
+      <button id="toggleHistory" class="rail-button" type="button" aria-label="展开历史" aria-expanded="false" data-panel="history">
+        <span class="rail-icon rail-icon-history" aria-hidden="true"></span>
+      </button>
+    </nav>
+
+    <aside id="resultsDrawer" class="results-drawer" aria-label="侧边栏目">
       <div class="drawer-head">
         <div>
-          <span>Library</span>
-          <strong id="searchState">待搜索</strong>
+          <span id="drawerKicker">Search</span>
+          <strong id="drawerTitle">搜索歌曲</strong>
         </div>
         <button id="closeResults" type="button" aria-label="关闭结果">关闭</button>
       </div>
+
+      <section id="searchPanel" class="drawer-panel is-active" aria-label="搜索">
+        <form id="searchForm" class="search-form">
+          <input id="keyword" name="keyword" placeholder="搜索歌曲 / 歌手 / 专辑" value="周杰伦" autocomplete="off">
+          <button type="submit">搜索</button>
+        </form>
+        <p id="searchState" class="panel-state">待搜索</p>
+        <div id="results" class="results"></div>
+      </section>
+
+      <section id="historyPanel" class="drawer-panel" aria-label="播放历史">
+        <div id="historyBody" class="history-body">
+          <div class="history-actions">
+            <button id="playHistory" type="button">顺序播放</button>
+            <button id="clearHistory" type="button">清空</button>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </div>
+      </section>
+
       <nav class="login-actions" aria-label="登录">
-        <button id="officialLogin" type="button">官方页登录</button>
-        <button id="officialHome" type="button">QQ 音乐首页</button>
-        <button id="checkOfficialLogin" type="button">我已登录</button>
+        <button id="officialLogin" type="button">QQ 登录</button>
       </nav>
-      <div id="results" class="results"></div>
     </aside>
 
     <footer class="visualizer-status">

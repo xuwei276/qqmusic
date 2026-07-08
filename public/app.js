@@ -1,6 +1,13 @@
+const playbackHistoryKey = "qqMusicPlaybackHistory";
+const maxPlaybackHistory = 80;
+
 const state = {
   sessionId: "",
-  drawerOpen: false
+  drawerOpen: false,
+  activePanel: "search",
+  playbackHistory: readPlaybackHistory(),
+  currentHistoryIndex: -1,
+  currentSong: null
 };
 
 const loginState = document.querySelector("#loginState");
@@ -9,16 +16,17 @@ const weatherIcon = document.querySelector("#weatherIcon");
 const weatherCity = document.querySelector("#weatherCity");
 const weatherText = document.querySelector("#weatherText");
 const officialLogin = document.querySelector("#officialLogin");
-const officialHome = document.querySelector("#officialHome");
-const checkOfficialLogin = document.querySelector("#checkOfficialLogin");
 const searchForm = document.querySelector("#searchForm");
 const toggleSearch = document.querySelector("#toggleSearch");
 const keyword = document.querySelector("#keyword");
 const searchState = document.querySelector("#searchState");
 const results = document.querySelector("#results");
 const resultsDrawer = document.querySelector("#resultsDrawer");
-const toggleResults = document.querySelector("#toggleResults");
 const closeResults = document.querySelector("#closeResults");
+const drawerKicker = document.querySelector("#drawerKicker");
+const drawerTitle = document.querySelector("#drawerTitle");
+const searchPanel = document.querySelector("#searchPanel");
+const historyPanel = document.querySelector("#historyPanel");
 const player = document.querySelector("#player");
 const playState = document.querySelector("#playState");
 const heroState = document.querySelector("#heroState");
@@ -37,9 +45,12 @@ const visualizerContext = visualizer.getContext("2d");
 const vinylRecord = document.querySelector(".vinyl-record");
 const togglePlayback = document.querySelector("#togglePlayback");
 const transportHint = document.querySelector("#transportHint");
+const toggleHistory = document.querySelector("#toggleHistory");
+const historyList = document.querySelector("#historyList");
+const playHistory = document.querySelector("#playHistory");
+const clearHistory = document.querySelector("#clearHistory");
 
 const officialLoginUrl = "https://y.qq.com/n/ryqq_v2/profile";
-const officialHomeUrl = "https://y.qq.com/";
 const visualizerState = {
   frame: 0,
   running: false,
@@ -129,19 +140,33 @@ async function loadWeather(city = "Shanghai") {
   }
 }
 
-function setDrawer(open) {
-  state.drawerOpen = open;
-  resultsDrawer.classList.toggle("is-open", open);
-  toggleResults.setAttribute("aria-expanded", String(open));
+function setActivePanel(panel) {
+  const nextPanel = panel === "history" ? "history" : "search";
+  state.activePanel = nextPanel;
+  searchPanel?.classList.toggle("is-active", nextPanel === "search");
+  historyPanel?.classList.toggle("is-active", nextPanel === "history");
+  toggleSearch?.classList.toggle("is-active", nextPanel === "search");
+  toggleHistory?.classList.toggle("is-active", nextPanel === "history");
+
+  if (drawerKicker) drawerKicker.textContent = nextPanel === "history" ? "Played" : "Search";
+  if (drawerTitle) drawerTitle.textContent = nextPanel === "history" ? "播放历史" : "搜索歌曲";
 }
 
-function setSearchOpen(open) {
-  searchForm.classList.toggle("is-open", open);
-  toggleSearch?.setAttribute("aria-expanded", String(open));
-  toggleSearch?.setAttribute("aria-label", open ? "收起搜索" : "展开搜索");
-  if (open) {
+function setDrawer(open, panel = state.activePanel) {
+  if (open) setActivePanel(panel);
+  state.drawerOpen = open;
+  resultsDrawer.classList.toggle("is-open", open);
+  toggleSearch?.setAttribute("aria-expanded", String(open && state.activePanel === "search"));
+  toggleHistory?.setAttribute("aria-expanded", String(open && state.activePanel === "history"));
+
+  if (open && state.activePanel === "search") {
     window.requestAnimationFrame(() => keyword.focus());
   }
+}
+
+function toggleDrawerPanel(panel) {
+  const shouldClose = state.drawerOpen && state.activePanel === panel;
+  setDrawer(!shouldClose, panel);
 }
 
 function formatDuration(seconds) {
@@ -149,6 +174,138 @@ function formatDuration(seconds) {
   const minute = Math.floor(seconds / 60);
   const second = String(seconds % 60).padStart(2, "0");
   return `${minute}:${second}`;
+}
+
+function readPlaybackHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(playbackHistoryKey) || "[]");
+    return Array.isArray(parsed)
+      ? parsed.map(normalizeSong).filter((song) => song.songmid && song.mediaMid)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePlaybackHistory() {
+  try {
+    localStorage.setItem(playbackHistoryKey, JSON.stringify(state.playbackHistory));
+  } catch {
+    // History is a convenience feature; playback should not fail if storage is unavailable.
+  }
+}
+
+function normalizeSong(song) {
+  return {
+    songmid: String(song?.songmid || "").trim(),
+    mediaMid: String(song?.mediaMid || "").trim(),
+    title: String(song?.title || song?.songname || "未知歌曲").trim(),
+    singers: Array.isArray(song?.singers)
+      ? song.singers.map((singer) => String(singer).trim()).filter(Boolean)
+      : String(song?.singers || "").split(/[\/,，]/).map((singer) => singer.trim()).filter(Boolean),
+    albumname: String(song?.albumname || "").trim(),
+    interval: Number(song?.interval) || 0,
+    coverUrl: String(song?.coverUrl || "").trim(),
+    url: String(song?.url || "").trim()
+  };
+}
+
+function songKey(song) {
+  return `${song.songmid}::${song.mediaMid}`;
+}
+
+function songFromButton(button) {
+  return normalizeSong({
+    songmid: button.dataset.songmid,
+    mediaMid: button.dataset.mediaMid,
+    title: button.dataset.title,
+    singers: button.dataset.singers,
+    albumname: button.dataset.albumname,
+    interval: button.dataset.interval,
+    coverUrl: button.dataset.coverUrl,
+    url: button.dataset.url
+  });
+}
+
+function rememberPlayedSong(song) {
+  const normalized = normalizeSong(song);
+  if (!normalized.songmid || !normalized.mediaMid) return;
+
+  const key = songKey(normalized);
+  const existingIndex = state.playbackHistory.findIndex((item) => songKey(item) === key);
+  if (existingIndex >= 0) {
+    state.playbackHistory[existingIndex] = { ...state.playbackHistory[existingIndex], ...normalized };
+    state.currentHistoryIndex = existingIndex;
+  } else {
+    state.playbackHistory.push(normalized);
+    if (state.playbackHistory.length > maxPlaybackHistory) {
+      state.playbackHistory = state.playbackHistory.slice(-maxPlaybackHistory);
+    }
+    state.currentHistoryIndex = state.playbackHistory.findIndex((item) => songKey(item) === key);
+  }
+
+  savePlaybackHistory();
+  renderPlaybackHistory();
+}
+
+function renderPlaybackHistory() {
+  if (!historyList) return;
+
+  const hasHistory = state.playbackHistory.length > 0;
+  playHistory.disabled = !hasHistory;
+  clearHistory.disabled = !hasHistory;
+
+  if (!hasHistory) {
+    historyList.innerHTML = `<p class="history-empty">播放过的歌曲会出现在这里</p>`;
+    return;
+  }
+
+  historyList.innerHTML = state.playbackHistory.map((song, index) => {
+    const isCurrent = index === state.currentHistoryIndex;
+    const singerText = song.singers.length ? song.singers.join(" / ") : "未知歌手";
+    return `
+      <article class="history-song${isCurrent ? " is-current" : ""}">
+        <button class="history-play" type="button" data-history-index="${index}">
+          <span>${String(index + 1).padStart(2, "0")}</span>
+          <strong>${escapeHtml(song.title)}</strong>
+          <small>${escapeHtml(singerText)}</small>
+        </button>
+        <time>${formatDuration(song.interval)}</time>
+      </article>
+    `;
+  }).join("");
+}
+
+async function playHistoryAt(index) {
+  const song = state.playbackHistory[index];
+  if (!song) return false;
+  state.currentHistoryIndex = index;
+  renderPlaybackHistory();
+  await playSong(song);
+  return true;
+}
+
+async function playNextHistorySong() {
+  if (!state.playbackHistory.length || state.currentHistoryIndex < 0) {
+    heroState.textContent = "播放结束";
+    return;
+  }
+
+  const nextIndex = state.currentHistoryIndex + 1;
+  if (nextIndex >= state.playbackHistory.length) {
+    heroState.textContent = "列表播放完毕";
+    playState.textContent = "播放历史已按顺序播完";
+    updateTransportControl();
+    return;
+  }
+
+  playState.textContent = "正在按历史顺序播放下一首";
+  try {
+    await playHistoryAt(nextIndex);
+  } catch (error) {
+    playState.textContent = `下一首播放失败：${error.message}`;
+    heroState.textContent = "播放失败";
+  }
 }
 
 function updateTrackProgress() {
@@ -194,10 +351,7 @@ function seekByOffset(seconds) {
 
 async function search(event) {
   event?.preventDefault();
-  if (!searchForm.classList.contains("is-open")) {
-    setSearchOpen(true);
-    return;
-  }
+  setDrawer(true, "search");
 
   const q = keyword.value.trim();
   if (!q) return;
@@ -226,22 +380,24 @@ async function search(event) {
           data-songmid="${escapeHtml(song.songmid)}"
           data-media-mid="${escapeHtml(song.mediaMid || "")}"
           data-title="${escapeHtml(song.songname)}"
+          data-singers="${escapeHtml(song.singers.join(" / "))}"
+          data-albumname="${escapeHtml(song.albumname || "")}"
+          data-interval="${escapeHtml(song.interval || 0)}"
           data-cover-url="${escapeHtml(song.coverUrl || "")}"
+          data-url="${escapeHtml(song.url || "")}"
         >播放</button>
       </article>
     `).join("");
-    setSearchOpen(false);
   } catch (error) {
     searchState.textContent = "搜索失败";
     results.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
   }
 }
 
-async function playSong(button) {
-  const songmid = button.dataset.songmid;
-  const mediaMid = button.dataset.mediaMid;
-  const title = button.dataset.title;
-  const coverUrl = button.dataset.coverUrl;
+async function playSong(source) {
+  const button = source instanceof HTMLElement ? source : null;
+  const song = button ? songFromButton(button) : normalizeSong(source);
+  const { songmid, mediaMid, title, coverUrl } = song;
   if (!songmid || !mediaMid) {
     playState.textContent = "缺少播放参数";
     return;
@@ -250,10 +406,11 @@ async function playSong(button) {
   const params = new URLSearchParams({ songmid, mediaMid });
   if (state.sessionId) params.set("sessionId", state.sessionId);
 
-  button.disabled = true;
+  if (button) button.disabled = true;
   playState.textContent = `正在获取《${title}》播放地址`;
   currentTrack.textContent = title;
   setVinylCover(coverUrl);
+  state.currentSong = song;
   updateTransportControl();
 
   try {
@@ -275,6 +432,7 @@ async function playSong(button) {
     if (proxied) await setupAudioAnalyser();
     loadLyrics(songmid);
     await player.play();
+    rememberPlayedSong(song);
     playState.textContent = `正在播放《${title}》`;
     heroState.textContent = "正在播放";
     setDrawer(false);
@@ -283,7 +441,7 @@ async function playSong(button) {
     playState.textContent = `播放失败：${error.message}`;
     heroState.textContent = "播放失败";
   } finally {
-    button.disabled = false;
+    if (button) button.disabled = false;
   }
 }
 
@@ -1204,17 +1362,6 @@ officialLogin.addEventListener("click", () => {
   setLog("已打开 QQ 音乐官方个人页。登录完成后回到本页播放。");
 });
 
-officialHome.addEventListener("click", () => {
-  window.open(officialHomeUrl, "_blank", "noopener");
-  loginState.textContent = "请在 QQ 音乐首页登录";
-  setLog("已打开 QQ 音乐首页。登录完成后回到本页播放。");
-});
-
-checkOfficialLogin.addEventListener("click", () => {
-  loginState.textContent = "将使用浏览器 QQ 登录态取播放地址";
-  setLog("如果仍提示 purl 为空，请确认官方页已登录，且当前页面为 https://local.y.qq.com:5174。");
-});
-
 trackProgress.addEventListener("pointerdown", (event) => {
   seekState.dragging = true;
   trackProgress.classList.add("is-dragging");
@@ -1266,13 +1413,13 @@ trackProgress.addEventListener("keydown", (event) => {
   }
 });
 
-toggleResults.addEventListener("click", () => setDrawer(!state.drawerOpen));
+toggleSearch?.addEventListener("click", () => toggleDrawerPanel("search"));
+toggleHistory?.addEventListener("click", () => toggleDrawerPanel("history"));
 closeResults.addEventListener("click", () => setDrawer(false));
 searchForm.addEventListener("submit", search);
-toggleSearch?.addEventListener("click", () => setSearchOpen(!searchForm.classList.contains("is-open")));
 keyword.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
-    setSearchOpen(false);
+    setDrawer(false);
     toggleSearch?.focus();
   }
 });
@@ -1288,6 +1435,21 @@ togglePlayback?.addEventListener("click", togglePlaybackState);
 results.addEventListener("click", (event) => {
   const button = event.target.closest(".play-btn");
   if (button) playSong(button);
+});
+historyList?.addEventListener("click", (event) => {
+  const button = event.target.closest(".history-play");
+  if (!button) return;
+  playHistoryAt(Number(button.dataset.historyIndex));
+});
+playHistory?.addEventListener("click", () => {
+  playHistoryAt(0);
+});
+clearHistory?.addEventListener("click", () => {
+  state.playbackHistory = [];
+  state.currentHistoryIndex = -1;
+  savePlaybackHistory();
+  renderPlaybackHistory();
+  playState.textContent = "播放历史已清空";
 });
 
 player.addEventListener("pause", () => {
@@ -1312,6 +1474,7 @@ player.addEventListener("durationchange", updateTrackProgress);
 player.addEventListener("ended", () => {
   updateTrackProgress();
   updateTransportControl();
+  playNextHistorySong();
 });
 
 player.addEventListener("error", () => {
@@ -1346,6 +1509,8 @@ player.addEventListener("error", () => {
 window.addEventListener("resize", resizeVisualizer);
 
 loadWeather();
+setActivePanel("search");
+renderPlaybackHistory();
 updateVisualizerModeLabel(false);
 startVisualizer();
 updateTransportControl();
