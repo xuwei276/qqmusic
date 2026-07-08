@@ -40,6 +40,7 @@ const toggleVisualizer = document.querySelector("#toggleVisualizer");
 const chooseWallpaper = document.querySelector("#chooseWallpaper");
 const resetWallpaper = document.querySelector("#resetWallpaper");
 const wallpaperFile = document.querySelector("#wallpaperFile");
+const toggleFullscreen = document.querySelector("#toggleFullscreen");
 const trackProgress = document.querySelector("#trackProgress");
 const trackProgressFill = document.querySelector("#trackProgressFill");
 const trackTime = document.querySelector("#trackTime");
@@ -259,6 +260,26 @@ function setVisualizerMode(mode) {
     // Ignore storage failures in private or restricted browsing contexts.
   }
   updateVisualizerModeLabel(false);
+}
+
+function updateFullscreenControl() {
+  if (!toggleFullscreen) return;
+  const isFullscreen = Boolean(document.fullscreenElement);
+  toggleFullscreen.textContent = isFullscreen ? "退出全屏" : "全屏";
+  toggleFullscreen.setAttribute("aria-label", isFullscreen ? "退出全屏" : "进入全屏");
+}
+
+async function toggleFullscreenMode() {
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await document.documentElement.requestFullscreen();
+    }
+  } catch (error) {
+    playState.textContent = `全屏切换失败：${error.message}`;
+  }
+  updateFullscreenControl();
 }
 
 function updateVisualizerModeLabel(hasRealFrequency) {
@@ -1791,6 +1812,7 @@ toggleVisualizer?.addEventListener("click", () => {
 chooseWallpaper?.addEventListener("click", () => wallpaperFile?.click());
 resetWallpaper?.addEventListener("click", resetCustomWallpaper);
 wallpaperFile?.addEventListener("change", handleWallpaperFileChange);
+toggleFullscreen?.addEventListener("click", toggleFullscreenMode);
 togglePlayback?.addEventListener("click", togglePlaybackState);
 results.addEventListener("click", (event) => {
   const button = event.target.closest(".play-btn");
@@ -1871,6 +1893,7 @@ window.addEventListener("pointerleave", () => {
   pointerState.inside = false;
 });
 window.addEventListener("resize", resizeVisualizer);
+document.addEventListener("fullscreenchange", updateFullscreenControl);
 
 window.matchMedia?.("(prefers-reduced-motion: reduce)")?.addEventListener?.("change", (event) => {
   pointerState.reduceMotion = event.matches;
@@ -1881,5 +1904,6 @@ setActivePanel("search");
 renderPlaybackHistory();
 loadWallpaperPreference();
 updateVisualizerModeLabel(false);
+updateFullscreenControl();
 startVisualizer();
 updateTransportControl();

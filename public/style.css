@@ -475,7 +475,9 @@ audio {
   gap: 8px;
 }
 
-.visualizer-toggle {
+.visualizer-toggle,
+.wallpaper-toggle,
+.utility-toggle {
   min-height: 20px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
@@ -498,22 +500,9 @@ audio {
   pointer-events: none;
 }
 
-.wallpaper-toggle {
-  min-height: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  padding: 0 8px;
-  background: rgba(255, 255, 255, 0.055);
-  color: rgba(255, 255, 255, 0.66);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 700;
-  text-shadow: none;
-  pointer-events: auto;
-}
-
 .visualizer-toggle:hover,
-.wallpaper-toggle:hover {
+.wallpaper-toggle:hover,
+.utility-toggle:hover {
   background: rgba(40, 201, 213, 0.16);
   color: rgba(255, 255, 255, 0.86);
 }
