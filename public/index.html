@@ -63,7 +63,7 @@
 
       <section id="searchPanel" class="drawer-panel is-active" aria-label="搜索">
         <form id="searchForm" class="search-form">
-          <input id="keyword" name="keyword" placeholder="搜索歌曲 / 歌手 / 专辑" value="周杰伦" autocomplete="off">
+          <input id="keyword" name="keyword" placeholder="搜索歌曲 / 歌手 / 专辑" autocomplete="off">
           <button type="submit">搜索</button>
         </form>
         <p id="searchState" class="panel-state">待搜索</p>
@@ -103,6 +103,9 @@
       </div>
       <div class="visualizer-meta">
         <span>
+          <button id="chooseWallpaper" class="wallpaper-toggle" type="button">换壁纸</button>
+          <button id="resetWallpaper" class="wallpaper-toggle" type="button">默认壁纸</button>
+          <input id="wallpaperFile" class="wallpaper-file" type="file" accept="image/*">
           <button id="toggleVisualizer" class="visualizer-toggle" type="button">液态玻璃</button>
           <span id="visualizerMode">液态玻璃</span>
         </span>

@@ -37,6 +37,9 @@ const nextLyric = document.querySelector("#nextLyric");
 const lyricsList = document.querySelector("#lyricsList");
 const visualizerMode = document.querySelector("#visualizerMode");
 const toggleVisualizer = document.querySelector("#toggleVisualizer");
+const chooseWallpaper = document.querySelector("#chooseWallpaper");
+const resetWallpaper = document.querySelector("#resetWallpaper");
+const wallpaperFile = document.querySelector("#wallpaperFile");
 const trackProgress = document.querySelector("#trackProgress");
 const trackProgressFill = document.querySelector("#trackProgressFill");
 const trackTime = document.querySelector("#trackTime");
@@ -51,6 +54,11 @@ const playHistory = document.querySelector("#playHistory");
 const clearHistory = document.querySelector("#clearHistory");
 
 const officialLoginUrl = "https://y.qq.com/n/ryqq_v2/profile";
+const wallpaperModeKey = "qqMusicWallpaperMode";
+const wallpaperDbName = "qqMusicWallpaper";
+const wallpaperStoreName = "images";
+const customWallpaperKey = "custom";
+let customWallpaperUrl = "";
 const visualizerState = {
   frame: 0,
   running: false,
@@ -96,6 +104,151 @@ function readVisualizerMode() {
   } catch {
     return "liquidGlass";
   }
+}
+
+function readWallpaperMode() {
+  try {
+    const mode = localStorage.getItem(wallpaperModeKey);
+    return mode === "custom" ? "custom" : "default";
+  } catch {
+    return "default";
+  }
+}
+
+function setWallpaperMode(mode, imageUrl = "") {
+  const nextMode = mode === "custom" && imageUrl ? "custom" : "default";
+  document.body.dataset.wallpaper = nextMode;
+
+  if (nextMode === "custom") {
+    document.documentElement.style.setProperty("--wallpaper-image", `url("${imageUrl}")`);
+  } else {
+    document.documentElement.style.removeProperty("--wallpaper-image");
+  }
+
+  if (chooseWallpaper) {
+    chooseWallpaper.textContent = nextMode === "custom" ? "更换壁纸" : "换壁纸";
+  }
+  if (resetWallpaper) {
+    resetWallpaper.disabled = nextMode !== "custom";
+  }
+
+  try {
+    localStorage.setItem(wallpaperModeKey, nextMode);
+  } catch {
+    // Ignore storage failures in private or restricted browsing contexts.
+  }
+}
+
+function openWallpaperDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(wallpaperDbName, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(wallpaperStoreName);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("壁纸数据库打开失败"));
+  });
+}
+
+async function readCustomWallpaperBlob() {
+  const db = await openWallpaperDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(wallpaperStoreName, "readonly");
+    const request = transaction.objectStore(wallpaperStoreName).get(customWallpaperKey);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error || new Error("壁纸读取失败"));
+    transaction.oncomplete = () => db.close();
+  });
+}
+
+async function saveCustomWallpaperBlob(blob) {
+  const db = await openWallpaperDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(wallpaperStoreName, "readwrite");
+    transaction.objectStore(wallpaperStoreName).put(blob, customWallpaperKey);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error || new Error("壁纸保存失败"));
+    };
+  });
+}
+
+async function deleteCustomWallpaperBlob() {
+  const db = await openWallpaperDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(wallpaperStoreName, "readwrite");
+    transaction.objectStore(wallpaperStoreName).delete(customWallpaperKey);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error || new Error("壁纸删除失败"));
+    };
+  });
+}
+
+function applyCustomWallpaperBlob(blob) {
+  if (customWallpaperUrl) URL.revokeObjectURL(customWallpaperUrl);
+  customWallpaperUrl = URL.createObjectURL(blob);
+  setWallpaperMode("custom", customWallpaperUrl);
+}
+
+async function loadWallpaperPreference() {
+  if (readWallpaperMode() !== "custom") {
+    setWallpaperMode("default");
+    return;
+  }
+
+  try {
+    const blob = await readCustomWallpaperBlob();
+    if (blob) {
+      applyCustomWallpaperBlob(blob);
+    } else {
+      setWallpaperMode("default");
+    }
+  } catch (error) {
+    setWallpaperMode("default");
+    setLog(`自定义壁纸读取失败：${error.message}`);
+  }
+}
+
+async function handleWallpaperFileChange(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+
+  if (!file.type.startsWith("image/")) {
+    playState.textContent = "请选择图片文件作为壁纸";
+    return;
+  }
+
+  try {
+    await saveCustomWallpaperBlob(file);
+    applyCustomWallpaperBlob(file);
+    playState.textContent = "自定义壁纸已应用";
+  } catch (error) {
+    playState.textContent = `壁纸保存失败：${error.message}`;
+  }
+}
+
+async function resetCustomWallpaper() {
+  try {
+    await deleteCustomWallpaperBlob();
+  } catch {
+    // Reset the visible state even if deleting old storage fails.
+  }
+  if (customWallpaperUrl) {
+    URL.revokeObjectURL(customWallpaperUrl);
+    customWallpaperUrl = "";
+  }
+  setWallpaperMode("default");
+  playState.textContent = "已恢复默认壁纸";
 }
 
 function setVisualizerMode(mode) {
@@ -388,12 +541,14 @@ async function search(event) {
     searchState.textContent = `${payload.total} 条结果`;
     results.innerHTML = payload.songs.map((song) => `
       <article class="song">
-        <div>
+        <div class="song-main">
           <a href="${song.url}" target="_blank" rel="noreferrer">${escapeHtml(song.songname)}</a>
           <p>${escapeHtml(song.singers.join(" / "))}</p>
         </div>
-        <span>${escapeHtml(song.albumname || "未知专辑")}</span>
-        <time>${formatDuration(song.interval)}</time>
+        <div class="song-meta">
+          <span>${escapeHtml(song.albumname || "未知专辑")}</span>
+          <time>${formatDuration(song.interval)}</time>
+        </div>
         <button
           class="play-btn"
           type="button"
@@ -1633,6 +1788,9 @@ toggleVisualizer?.addEventListener("click", () => {
   }[visualizerState.mode] || "liquidGlass";
   setVisualizerMode(nextMode);
 });
+chooseWallpaper?.addEventListener("click", () => wallpaperFile?.click());
+resetWallpaper?.addEventListener("click", resetCustomWallpaper);
+wallpaperFile?.addEventListener("change", handleWallpaperFileChange);
 togglePlayback?.addEventListener("click", togglePlaybackState);
 results.addEventListener("click", (event) => {
   const button = event.target.closest(".play-btn");
@@ -1721,6 +1879,7 @@ window.matchMedia?.("(prefers-reduced-motion: reduce)")?.addEventListener?.("cha
 loadWeather();
 setActivePanel("search");
 renderPlaybackHistory();
+loadWallpaperPreference();
 updateVisualizerModeLabel(false);
 startVisualizer();
 updateTransportControl();
