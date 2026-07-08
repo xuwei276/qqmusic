@@ -1,6 +1,7 @@
 node_modules/
 certs/
 tmp/
+dist/
 .env
 .env.*
 npm-debug.log*

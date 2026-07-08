@@ -2,10 +2,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import https from "node:https";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { Readable } from "node:stream";
 import express from "express";
 import { pinyin } from "pinyin-pro";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = process.env.PORT || 5174;
 const httpsPort = process.env.HTTPS_PORT || port;
@@ -20,7 +23,7 @@ const USER_AGENT =
 
 const sessions = new Map();
 
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
 function parseLrcLines(lrc) {
   const lines = [];
@@ -460,7 +463,7 @@ app.get("/api/play-url", async (req, res, next) => {
     const session = req.query.sessionId ? sessions.get(String(req.query.sessionId)) : null;
     const jar = session?.jar || new CookieJar();
     const guid = String(Math.floor(1000000000 + Math.random() * 9000000000));
-    const filename = `C400${mediaMid}.m4a`;
+    const filenames = getPlayFilenames(mediaMid);
 
     const body = JSON.stringify({
       req_0: {
@@ -469,7 +472,7 @@ app.get("/api/play-url", async (req, res, next) => {
         param: {
           guid,
           songmid: [songmid],
-          filename: [filename],
+          filename: filenames,
           songtype: [0],
           uin: "0",
           loginflag: 1,
@@ -495,7 +498,8 @@ app.get("/api/play-url", async (req, res, next) => {
     });
     const payload = await response.json();
     const data = payload?.req_0?.data || {};
-    const info = data.midurlinfo?.[0] || {};
+    const infos = Array.isArray(data.midurlinfo) ? data.midurlinfo : [];
+    const info = infos.find((item) => item?.purl) || infos[0] || {};
     const purl = info.purl || "";
     const hosts = [...(data.sip || []), ...(data.thirdip || [])].filter(Boolean);
     const playUrl = purl ? new URL(purl, hosts[0] || "https://dl.stream.qqmusic.qq.com/").toString().replace(/^http:\/\//, "https://") : "";
@@ -505,7 +509,7 @@ app.get("/api/play-url", async (req, res, next) => {
       httpStatus: response.status,
       playable: Boolean(playUrl),
       playUrl,
-      filename: info.filename || filename,
+      filename: info.filename || filenames[0],
       result: info.result,
       tips: info.tips || data.msg || "",
       expiration: data.expiration,
@@ -515,6 +519,14 @@ app.get("/api/play-url", async (req, res, next) => {
     next(error);
   }
 });
+
+function getPlayFilenames(mediaMid) {
+  return [
+    `C400${mediaMid}.m4a`,
+    `M500${mediaMid}.mp3`,
+    `M800${mediaMid}.mp3`
+  ];
+}
 
 app.get("/api/audio-proxy", async (req, res, next) => {
   try {
@@ -686,16 +698,50 @@ app.use((error, _req, res, _next) => {
   });
 });
 
-if (fs.existsSync(localPfxPath)) {
-  https.createServer({
-    pfx: fs.readFileSync(localPfxPath),
-    passphrase: localPfxPassphrase
-  }, app).listen(httpsPort, () => {
-    console.log(`QQ Music demo is running at https://local.y.qq.com:${httpsPort}`);
+export function startServer(options = {}) {
+  const requestedPort = options.port ?? port;
+  const requestedHttpsPort = options.httpsPort ?? httpsPort;
+
+  if (fs.existsSync(localPfxPath)) {
+    const server = https.createServer({
+      pfx: fs.readFileSync(localPfxPath),
+      passphrase: localPfxPassphrase
+    }, app);
+
+    return new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(requestedHttpsPort, () => {
+        server.off("error", reject);
+        const actualPort = server.address().port;
+        const url = `https://local.y.qq.com:${actualPort}`;
+        console.log(`QQ Music demo is running at ${url}`);
+        resolve({ app, server, url, protocol: "https", port: actualPort });
+      });
+    });
+  }
+
+  const server = http.createServer(app);
+
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(requestedPort, () => {
+      server.off("error", reject);
+      const actualPort = server.address().port;
+      const url = `http://localhost:${actualPort}`;
+      console.log(`QQ Music demo is running at ${url}`);
+      console.log("For logged-in QQ Music playback, run scripts/setup-local-qq-host.ps1 and open https://local.y.qq.com:5174");
+      resolve({ app, server, url, protocol: "http", port: actualPort });
+    });
   });
-} else {
-  http.createServer(app).listen(port, () => {
-    console.log(`QQ Music demo is running at http://localhost:${port}`);
-    console.log("For logged-in QQ Music playback, run scripts/setup-local-qq-host.ps1 and open https://local.y.qq.com:5174");
+}
+
+export { app };
+
+const isDirectRun = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+
+if (isDirectRun) {
+  startServer().catch((error) => {
+    console.error(error);
+    process.exit(1);
   });
 }

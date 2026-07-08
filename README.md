@@ -11,6 +11,20 @@ npm start
 
 打开 `http://localhost:5174`。
 
+桌面版可以用 Electron 直接打开同一套本地服务：
+
+```bash
+npm run electron
+```
+
+打包 Windows 安装包和便携版：
+
+```bash
+npm run dist
+```
+
+打包产物会输出到 `dist/`。Electron 启动时会自动启动本地 Express 服务；如果已经配置了 `local.y.qq.com` 证书，会优先加载 `https://local.y.qq.com:5174`，否则加载 `http://localhost:5174`。
+
 如果要让浏览器尽量携带 QQ 音乐登录 cookie 来取有权限歌曲的播放地址，请改用本地 QQ 子域 HTTPS：
 
 ```powershell

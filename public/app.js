@@ -60,6 +60,19 @@ const visualizerState = {
   peakCaps: [],
   mode: readVisualizerMode()
 };
+const pointerState = {
+  x: 0,
+  y: 0,
+  lastX: 0,
+  lastY: 0,
+  hasPosition: false,
+  inside: false,
+  lastMoveAt: 0,
+  lastRippleAt: 0,
+  particles: [],
+  ripples: [],
+  reduceMotion: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches || false
+};
 const audioAnalysisState = {
   context: null,
   analyser: null,
@@ -604,7 +617,7 @@ function getLyricRevealTiming(line, nextLine, tokenCount) {
 
 function getBrowserPlayUrl(songmid, mediaMid) {
   const guid = String(Math.floor(1000000000 + Math.random() * 9000000000));
-  const filename = `C400${mediaMid}.m4a`;
+  const filenames = getPlayFilenames(mediaMid);
   const request = {
     req_0: {
       module: "vkey.GetVkeyServer",
@@ -612,7 +625,7 @@ function getBrowserPlayUrl(songmid, mediaMid) {
       param: {
         guid,
         songmid: [songmid],
-        filename: [filename],
+        filename: filenames,
         songtype: [0],
         uin: "0",
         loginflag: 1,
@@ -632,12 +645,13 @@ function getBrowserPlayUrl(songmid, mediaMid) {
     jsonpCallback: "callback",
     format: "json",
     data: JSON.stringify(request)
-  }).then((payload) => normalizePlayPayload(payload, filename));
+  }).then((payload) => normalizePlayPayload(payload, filenames[0]));
 }
 
 function normalizePlayPayload(payload, filename) {
   const data = payload?.req_0?.data || {};
-  const info = data.midurlinfo?.[0] || {};
+  const infos = Array.isArray(data.midurlinfo) ? data.midurlinfo : [];
+  const info = infos.find((item) => item?.purl) || infos[0] || {};
   const purl = info.purl || "";
   const hosts = [...(data.sip || []), ...(data.thirdip || [])].filter(Boolean);
   const playUrl = purl ? toHttpsUrl(new URL(purl, hosts[0] || "https://dl.stream.qqmusic.qq.com/").toString()) : "";
@@ -650,6 +664,14 @@ function normalizePlayPayload(payload, filename) {
     tips: info.tips || data.msg || "",
     source: "browser"
   };
+}
+
+function getPlayFilenames(mediaMid) {
+  return [
+    `C400${mediaMid}.m4a`,
+    `M500${mediaMid}.mp3`,
+    `M800${mediaMid}.mp3`
+  ];
 }
 
 function toHttpsUrl(url) {
@@ -813,6 +835,7 @@ function drawVisualizer() {
     drawLiquidGlassVisualizer(width, height, active, audioTime, t, realFrequencyData);
   }
 
+  drawPointerEffects(width, height, t);
   updateVisualizerModeLabel(Boolean(realFrequencyData));
   visualizerState.frame += 1;
   window.requestAnimationFrame(drawVisualizer);
@@ -1362,6 +1385,159 @@ function drawWhiteWave(width, height, baseline, active, t) {
   visualizerContext.restore();
 }
 
+function handlePointerMove(event) {
+  const rect = visualizer.getBoundingClientRect();
+  const scaleX = visualizer.width / Math.max(1, rect.width);
+  const scaleY = visualizer.height / Math.max(1, rect.height);
+  const x = (event.clientX - rect.left) * scaleX;
+  const y = (event.clientY - rect.top) * scaleY;
+
+  if (!pointerState.hasPosition) {
+    pointerState.lastX = x;
+    pointerState.lastY = y;
+    pointerState.hasPosition = true;
+  }
+
+  const dx = x - pointerState.lastX;
+  const dy = y - pointerState.lastY;
+  const distance = Math.hypot(dx, dy);
+  const now = performance.now();
+  const reduced = pointerState.reduceMotion;
+  const particleCount = reduced ? (distance > 18 ? 1 : 0) : Math.min(4, Math.max(1, Math.floor(distance / 18) + 1));
+
+  pointerState.x = x;
+  pointerState.y = y;
+  pointerState.inside = true;
+  pointerState.lastMoveAt = now;
+
+  for (let i = 0; i < particleCount; i += 1) {
+    const mix = particleCount <= 1 ? 1 : i / (particleCount - 1);
+    const px = pointerState.lastX + dx * mix;
+    const py = pointerState.lastY + dy * mix;
+    spawnPointerParticle(px, py, dx, dy, distance, reduced);
+  }
+
+  if (!reduced && distance > 44 && now - pointerState.lastRippleAt > 80) {
+    spawnPointerRipple(x, y, distance);
+    pointerState.lastRippleAt = now;
+  }
+
+  pointerState.lastX = x;
+  pointerState.lastY = y;
+}
+
+function spawnPointerParticle(x, y, dx, dy, distance, reduced) {
+  const speed = Math.min(1, distance / 90);
+  const angle = Math.atan2(dy || 0.01, dx || 0.01) + Math.PI;
+  const scatter = (Math.random() - 0.5) * (0.9 + speed * 0.8);
+  const drift = 0.45 + Math.random() * 1.25 + speed * 1.2;
+  const size = (reduced ? 3.2 : 4.5) + Math.random() * (reduced ? 4 : 7) + speed * 5;
+
+  pointerState.particles.push({
+    x: x + (Math.random() - 0.5) * 8,
+    y: y + (Math.random() - 0.5) * 8,
+    vx: Math.cos(angle + scatter) * drift + (Math.random() - 0.5) * 0.55,
+    vy: Math.sin(angle + scatter) * drift + (Math.random() - 0.5) * 0.55 - 0.18,
+    size,
+    life: reduced ? 22 : 34 + Math.random() * 18,
+    age: 0,
+    hue: Math.random() > 0.78 ? "pink" : "cyan"
+  });
+
+  if (pointerState.particles.length > 90) {
+    pointerState.particles.splice(0, pointerState.particles.length - 90);
+  }
+}
+
+function spawnPointerRipple(x, y, distance) {
+  pointerState.ripples.push({
+    x,
+    y,
+    radius: 8,
+    maxRadius: Math.min(120, 38 + distance * 0.42),
+    life: 34,
+    age: 0
+  });
+
+  if (pointerState.ripples.length > 8) {
+    pointerState.ripples.shift();
+  }
+}
+
+function drawPointerEffects(width, height, t) {
+  if (!pointerState.particles.length && !pointerState.ripples.length) return;
+
+  visualizerContext.save();
+  visualizerContext.globalCompositeOperation = "screen";
+
+  for (let i = pointerState.ripples.length - 1; i >= 0; i -= 1) {
+    const ripple = pointerState.ripples[i];
+    const progress = ripple.age / ripple.life;
+    const alpha = Math.max(0, 1 - progress);
+    const radius = ripple.radius + (ripple.maxRadius - ripple.radius) * easeOutCubic(progress);
+
+    visualizerContext.beginPath();
+    visualizerContext.arc(ripple.x, ripple.y, radius, 0, Math.PI * 2);
+    visualizerContext.strokeStyle = `rgba(190, 248, 255, ${0.18 * alpha})`;
+    visualizerContext.lineWidth = Math.max(1, width / 900) * (1.2 + progress * 1.4);
+    visualizerContext.shadowColor = "rgba(80, 225, 240, 0.34)";
+    visualizerContext.shadowBlur = 16 * alpha;
+    visualizerContext.stroke();
+
+    ripple.age += 1;
+    if (ripple.age >= ripple.life) pointerState.ripples.splice(i, 1);
+  }
+
+  for (let i = pointerState.particles.length - 1; i >= 0; i -= 1) {
+    const particle = pointerState.particles[i];
+    const progress = particle.age / particle.life;
+    const alpha = Math.max(0, 1 - progress);
+    const pulse = 0.82 + Math.sin(t * 4 + i) * 0.18;
+    const radius = particle.size * (0.46 + progress * 0.92) * pulse;
+    const color = particle.hue === "pink"
+      ? { core: "255, 214, 238", glow: "223, 64, 134" }
+      : { core: "235, 255, 255", glow: "40, 201, 213" };
+    const gradient = visualizerContext.createRadialGradient(
+      particle.x,
+      particle.y,
+      0,
+      particle.x,
+      particle.y,
+      radius * 2.8
+    );
+
+    gradient.addColorStop(0, `rgba(${color.core}, ${0.62 * alpha})`);
+    gradient.addColorStop(0.34, `rgba(${color.glow}, ${0.22 * alpha})`);
+    gradient.addColorStop(1, `rgba(${color.glow}, 0)`);
+
+    visualizerContext.fillStyle = gradient;
+    visualizerContext.beginPath();
+    visualizerContext.arc(particle.x, particle.y, radius * 2.8, 0, Math.PI * 2);
+    visualizerContext.fill();
+
+    visualizerContext.fillStyle = `rgba(${color.core}, ${0.54 * alpha})`;
+    visualizerContext.beginPath();
+    visualizerContext.arc(particle.x, particle.y, Math.max(1, radius * 0.32), 0, Math.PI * 2);
+    visualizerContext.fill();
+
+    particle.x += particle.vx;
+    particle.y += particle.vy;
+    particle.vx *= 0.972;
+    particle.vy = particle.vy * 0.972 - 0.012;
+    particle.age += 1;
+
+    if (particle.age >= particle.life || particle.x < -80 || particle.x > width + 80 || particle.y < -80 || particle.y > height + 80) {
+      pointerState.particles.splice(i, 1);
+    }
+  }
+
+  visualizerContext.restore();
+}
+
+function easeOutCubic(value) {
+  return 1 - Math.pow(1 - Math.min(1, Math.max(0, value)), 3);
+}
+
 function roundRect(context, x, y, width, height, radius) {
   const r = Math.min(radius, width / 2, height / 2);
   context.beginPath();
@@ -1532,7 +1708,15 @@ player.addEventListener("error", () => {
   }
 });
 
+window.addEventListener("pointermove", handlePointerMove, { passive: true });
+window.addEventListener("pointerleave", () => {
+  pointerState.inside = false;
+});
 window.addEventListener("resize", resizeVisualizer);
+
+window.matchMedia?.("(prefers-reduced-motion: reduce)")?.addEventListener?.("change", (event) => {
+  pointerState.reduceMotion = event.matches;
+});
 
 loadWeather();
 setActivePanel("search");
