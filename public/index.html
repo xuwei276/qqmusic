@@ -39,23 +39,16 @@
           <div id="lyricsList" class="lyrics-list"></div>
         </section>
         <p id="playState" class="play-state">播放状态会显示在这里</p>
-        <div class="transport-controls" aria-label="播放控制">
-          <button id="togglePlayback" class="transport-button" type="button" disabled aria-label="播放">
-            <span class="transport-icon" aria-hidden="true">▶</span>
-          </button>
-          <span id="transportHint" class="transport-hint">选择歌曲后播放</span>
-        </div>
-
         <audio id="player" preload="metadata"></audio>
       </section>
     </main>
 
     <nav class="side-rail" aria-label="播放台栏目">
       <button id="toggleSearch" class="rail-button" type="button" aria-label="展开搜索" aria-expanded="false" data-panel="search">
-        <span class="rail-icon rail-icon-search" aria-hidden="true"></span>
+        <img class="rail-icon" src="/assets/icons/search.svg" alt="" aria-hidden="true">
       </button>
       <button id="toggleHistory" class="rail-button" type="button" aria-label="展开历史" aria-expanded="false" data-panel="history">
-        <span class="rail-icon rail-icon-history" aria-hidden="true"></span>
+        <img class="rail-icon" src="/assets/icons/history.svg" alt="" aria-hidden="true">
       </button>
     </nav>
 
@@ -93,6 +86,9 @@
     </aside>
 
     <footer class="visualizer-status">
+      <button id="togglePlayback" class="transport-button" type="button" disabled aria-label="播放">
+        <img class="rail-icon transport-icon" src="/assets/icons/play.svg" alt="" aria-hidden="true" data-play-src="/assets/icons/play.svg" data-pause-src="/assets/icons/pause.svg">
+      </button>
       <div
         id="trackProgress"
         class="track-progress"

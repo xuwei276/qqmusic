@@ -321,14 +321,21 @@ function updateTrackProgress() {
 }
 
 function updateTransportControl() {
-  if (!togglePlayback || !transportHint) return;
+  if (!togglePlayback) return;
   const canToggle = Boolean(player.currentSrc || player.src);
   const playing = canToggle && !player.paused && !player.ended;
   togglePlayback.disabled = !canToggle;
   togglePlayback.classList.toggle("is-playing", playing);
   togglePlayback.setAttribute("aria-label", playing ? "暂停" : "播放");
-  togglePlayback.querySelector(".transport-icon").textContent = playing ? "Ⅱ" : "▶";
-  transportHint.textContent = canToggle ? (playing ? "暂停" : "播放") : "选择歌曲后播放";
+  const transportIcon = togglePlayback.querySelector(".transport-icon");
+  if (transportIcon) {
+    transportIcon.src = playing
+      ? transportIcon.dataset.pauseSrc
+      : transportIcon.dataset.playSrc;
+  }
+  if (transportHint) {
+    transportHint.textContent = canToggle ? (playing ? "暂停" : "播放") : "选择歌曲后播放";
+  }
 }
 
 function seekByPointer(event) {
@@ -542,7 +549,7 @@ function updateLyrics() {
   lyricState.activeIndex = index;
   const active = lyricState.lines[index];
   const next = lyricState.lines[index + 1];
-  renderAlignedLyrics(active);
+  renderAlignedLyrics(active, next);
   nextLyric.textContent = next?.text || "";
 
   lyricsList.querySelectorAll("p").forEach((node) => {
@@ -552,7 +559,7 @@ function updateLyrics() {
   });
 }
 
-function renderAlignedLyrics(line) {
+function renderAlignedLyrics(line, nextLine) {
   if (!line?.text) {
     currentLyric.textContent = "暂无歌词";
     pinyinLyric.textContent = "";
@@ -565,15 +572,34 @@ function renderAlignedLyrics(line) {
     return;
   }
 
-  const pinyinHtml = line.tokens.map((token) => (
-    `<span class="lyric-token">${escapeHtml(token.pinyin || "")}</span>`
+  const timing = getLyricRevealTiming(line, nextLine, line.tokens.length);
+  const pinyinHtml = line.tokens.map((token, index) => (
+    `<span class="lyric-token" style="--token-index: ${index}; --token-step: ${timing.stepMs}ms; --token-duration: ${timing.durationMs}ms">${escapeHtml(token.pinyin || "")}</span>`
   )).join("");
-  const lyricHtml = line.tokens.map((token) => (
-    `<span class="lyric-token">${escapeHtml(token.text || "")}</span>`
+  const lyricHtml = line.tokens.map((token, index) => (
+    `<span class="lyric-token" style="--token-index: ${index}; --token-step: ${timing.stepMs}ms; --token-duration: ${timing.durationMs}ms">${escapeHtml(token.text || "")}</span>`
   )).join("");
 
   pinyinLyric.innerHTML = pinyinHtml;
   currentLyric.innerHTML = lyricHtml;
+}
+
+function getLyricRevealTiming(line, nextLine, tokenCount) {
+  const fallbackStepMs = 105;
+  if (!nextLine || !Number.isFinite(line.time) || !Number.isFinite(nextLine.time) || tokenCount <= 1) {
+    return {
+      stepMs: fallbackStepMs,
+      durationMs: 620
+    };
+  }
+
+  const lineDurationMs = Math.max(0, (nextLine.time - line.time) * 1000);
+  const spreadMs = lineDurationMs * 0.72;
+  const rawStepMs = spreadMs / Math.max(1, tokenCount - 1);
+  const stepMs = Math.round(Math.min(220, Math.max(45, rawStepMs)));
+  const durationMs = Math.round(Math.min(760, Math.max(360, stepMs * 4.8)));
+
+  return { stepMs, durationMs };
 }
 
 function getBrowserPlayUrl(songmid, mediaMid) {
