@@ -5,6 +5,15 @@ const state = {
   sessionId: "",
   drawerOpen: false,
   activePanel: "search",
+  search: {
+    query: "",
+    page: 0,
+    limit: 18,
+    total: 0,
+    loading: false,
+    exhausted: false,
+    error: ""
+  },
   playbackHistory: readPlaybackHistory(),
   currentHistoryIndex: -1,
   currentSong: null
@@ -21,6 +30,10 @@ const toggleSearch = document.querySelector("#toggleSearch");
 const keyword = document.querySelector("#keyword");
 const searchState = document.querySelector("#searchState");
 const results = document.querySelector("#results");
+const searchPager = document.querySelector("#searchPager");
+const prevSearchPage = document.querySelector("#prevSearchPage");
+const nextSearchPage = document.querySelector("#nextSearchPage");
+const searchPageInfo = document.querySelector("#searchPageInfo");
 const resultsDrawer = document.querySelector("#resultsDrawer");
 const closeResults = document.querySelector("#closeResults");
 const drawerKicker = document.querySelector("#drawerKicker");
@@ -306,24 +319,69 @@ async function readJson(response) {
   return payload;
 }
 
+function getCurrentPosition(options = {}) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("当前环境不支持定位。"));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
+
+function updateWeatherCard(payload, fallbackCity = "当前位置") {
+  const displayCity = payload.admin1 && payload.admin1 !== payload.city
+    ? `${payload.city}`
+    : payload.city;
+  const time = payload.time
+    ? new Date(payload.time).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+    : "--:--";
+  const temperature = Number.isFinite(payload.temperature)
+    ? `${Math.round(payload.temperature)}${payload.temperatureUnit || "°C"}`
+    : "--°";
+
+  weatherIcon.textContent = payload.icon || "☁";
+  weatherCity.textContent = displayCity || fallbackCity;
+  weatherText.textContent = `${temperature} · ${payload.description || "天气"} · ${time}`;
+}
+
+async function fetchWeatherByCity(city = "Shanghai") {
+  const payload = await readJson(await fetch(`/api/weather?city=${encodeURIComponent(city)}`));
+  updateWeatherCard(payload, city);
+}
+
+async function fetchWeatherByCurrentPosition() {
+  const position = await getCurrentPosition({
+    enableHighAccuracy: false,
+    timeout: 7000,
+    maximumAge: 10 * 60 * 1000
+  });
+  const { latitude, longitude } = position.coords;
+  const params = new URLSearchParams({
+    latitude: latitude.toFixed(5),
+    longitude: longitude.toFixed(5)
+  });
+  const payload = await readJson(await fetch(`/api/weather?${params}`));
+  updateWeatherCard(payload);
+}
+
 async function loadWeather(city = "Shanghai") {
   try {
-    const payload = await readJson(await fetch(`/api/weather?city=${encodeURIComponent(city)}`));
-    const displayCity = payload.admin1 && payload.admin1 !== payload.city
-      ? `${payload.city}`
-      : payload.city;
-    const time = payload.time
-      ? new Date(payload.time).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
-      : "--:--";
-
-    weatherIcon.textContent = payload.icon || "☁";
-    weatherCity.textContent = displayCity || city;
-    weatherText.textContent = `${time}, ${Math.round(payload.temperature)}${payload.temperatureUnit || "°C"}, ${payload.description}`;
+    weatherIcon.textContent = "⌖";
+    weatherCity.textContent = "当前位置";
+    weatherText.textContent = "定位中";
+    await fetchWeatherByCurrentPosition();
   } catch (error) {
-    weatherIcon.textContent = "☁";
-    weatherCity.textContent = city;
-    weatherText.textContent = "Weather unavailable";
-    setLog(`天气加载失败：${error.message}`);
+    try {
+      await fetchWeatherByCity(city);
+      setLog(`当前位置天气加载失败，已回退到 ${city}：${error.message}`);
+    } catch (fallbackError) {
+      weatherIcon.textContent = "☁";
+      weatherCity.textContent = city;
+      weatherText.textContent = "天气不可用";
+      setLog(`天气加载失败：${fallbackError.message}`);
+    }
   }
 }
 
@@ -550,17 +608,49 @@ async function search(event) {
   const q = keyword.value.trim();
   if (!q) return;
 
+  state.search = {
+    query: q,
+    page: 0,
+    limit: 18,
+    total: 0,
+    loading: false,
+    exhausted: false,
+    error: ""
+  };
   searchState.textContent = "搜索中";
   results.innerHTML = "";
+  updateSearchPaging();
   setDrawer(true);
 
-  const params = new URLSearchParams({ q, page: "1", limit: "18" });
+  await loadSearchPage(1);
+}
+
+async function loadSearchPage(page) {
+  if (state.search.loading || !state.search.query) return;
+
+  state.search.loading = true;
+  updateSearchPaging();
+  results.innerHTML = "";
+
+  const params = new URLSearchParams({
+    q: state.search.query,
+    page: String(page),
+    limit: String(state.search.limit)
+  });
   if (state.sessionId) params.set("sessionId", state.sessionId);
 
   try {
     const payload = await readJson(await fetch(`/api/search?${params}`));
-    searchState.textContent = `${payload.total} 条结果`;
-    results.innerHTML = payload.songs.map((song) => `
+    const songs = Array.isArray(payload.songs) ? payload.songs : [];
+    state.search.error = "";
+    state.search.page = payload.page || page;
+    state.search.limit = payload.limit || state.search.limit;
+    state.search.total = Number(payload.total) || 0;
+    state.search.exhausted = songs.length < state.search.limit || (
+      state.search.total > 0 && state.search.page >= Math.ceil(state.search.total / state.search.limit)
+    );
+
+    const markup = songs.map((song) => `
       <article class="song">
         <div class="song-main">
           <a href="${song.url}" target="_blank" rel="noreferrer">${escapeHtml(song.songname)}</a>
@@ -584,9 +674,54 @@ async function search(event) {
         >播放</button>
       </article>
     `).join("");
+    results.innerHTML = markup || `<p class="empty-state">这一页没有更多歌曲</p>`;
   } catch (error) {
-    searchState.textContent = "搜索失败";
+    state.search.error = error.message || "搜索失败";
     results.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+  } finally {
+    state.search.loading = false;
+    updateSearchPaging();
+  }
+}
+
+function updateSearchPaging() {
+  const { loading, page, limit, total, query, exhausted, error } = state.search;
+  const totalPages = total > 0 ? Math.max(1, Math.ceil(total / limit)) : 1;
+  if (!query) {
+    searchState.textContent = "待搜索";
+    if (searchPager) searchPager.hidden = true;
+    return;
+  }
+
+  if (error) {
+    searchState.textContent = "搜索失败";
+    if (searchPager) searchPager.hidden = true;
+    return;
+  }
+
+  if (loading && page === 0) {
+    searchState.textContent = "搜索中";
+  } else if (total > 0) {
+    searchState.textContent = `共 ${total} 条结果`;
+  } else if (page > 0) {
+    searchState.textContent = "当前页暂无结果";
+  } else {
+    searchState.textContent = loading ? "搜索中" : "没有结果";
+  }
+
+  if (searchPager) {
+    searchPager.hidden = page === 0 || total === 0;
+  }
+  if (searchPageInfo) {
+    searchPageInfo.textContent = loading && page > 0
+      ? `第 ${page} / ${totalPages} 页，加载中`
+      : `第 ${page || 1} / ${totalPages} 页`;
+  }
+  if (prevSearchPage) {
+    prevSearchPage.disabled = loading || page <= 1;
+  }
+  if (nextSearchPage) {
+    nextSearchPage.disabled = loading || exhausted || page >= totalPages;
   }
 }
 
@@ -1795,6 +1930,12 @@ toggleSearch?.addEventListener("click", () => toggleDrawerPanel("search"));
 toggleHistory?.addEventListener("click", () => toggleDrawerPanel("history"));
 closeResults.addEventListener("click", () => setDrawer(false));
 searchForm.addEventListener("submit", search);
+prevSearchPage?.addEventListener("click", () => {
+  loadSearchPage(Math.max(1, state.search.page - 1));
+});
+nextSearchPage?.addEventListener("click", () => {
+  loadSearchPage(state.search.page + 1);
+});
 keyword.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     setDrawer(false);

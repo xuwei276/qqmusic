@@ -24,6 +24,7 @@ npm run dist
 ```
 
 打包产物会输出到 `dist/`。Electron 启动时会自动启动本地 Express 服务；如果已经配置了 `local.y.qq.com` 证书，会优先加载 `https://local.y.qq.com:5174`，否则加载 `http://localhost:5174`。
+打包版会把本地 HTTPS 证书一起带入应用，并在 Electron 内把 `local.y.qq.com` 映射到 `127.0.0.1`，以便更接近 QQ 音乐网页端的 cookie 行为。
 
 如果要让浏览器尽量携带 QQ 音乐登录 cookie 来取有权限歌曲的播放地址，请改用本地 QQ 子域 HTTPS：
 

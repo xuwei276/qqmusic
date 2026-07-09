@@ -5,6 +5,8 @@ let expressServer;
 
 const chromeUserAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+app.commandLine.appendSwitch("host-rules", "MAP local.y.qq.com 127.0.0.1");
+
 const windowWebPreferences = {
   contextIsolation: true,
   nodeIntegration: false,
@@ -87,6 +89,10 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   const appSession = session.fromPartition("persist:qqmusic-karaoke");
   appSession.setUserAgent(chromeUserAgent);
+  appSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    const url = webContents.getURL();
+    callback(permission === "geolocation" && isLocalAppUrl(url));
+  });
   appSession.webRequest.onBeforeSendHeaders((details, callback) => {
     const headers = { ...details.requestHeaders };
     if (isQqMusicUrl(details.url) || isLocalAppUrl(details.url)) {

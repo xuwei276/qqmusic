@@ -24,6 +24,7 @@
       "output": "dist"
     },
     "files": [
+      "certs/**",
       "electron/**",
       "public/**",
       "server.js",

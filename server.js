@@ -134,29 +134,29 @@ function assertAllowedAudioUrl(rawUrl) {
 
 function weatherCodeToText(code) {
   const weatherMap = new Map([
-    [0, "Clear"],
-    [1, "Mainly clear"],
-    [2, "Partly cloudy"],
-    [3, "Cloudy"],
-    [45, "Fog"],
-    [48, "Rime fog"],
-    [51, "Light drizzle"],
-    [53, "Drizzle"],
-    [55, "Heavy drizzle"],
-    [61, "Light rain"],
-    [63, "Rain"],
-    [65, "Heavy rain"],
-    [71, "Light snow"],
-    [73, "Snow"],
-    [75, "Heavy snow"],
-    [80, "Rain showers"],
-    [81, "Rain showers"],
-    [82, "Heavy showers"],
-    [95, "Thunderstorm"],
-    [96, "Thunderstorm"],
-    [99, "Thunderstorm"]
+    [0, "晴"],
+    [1, "大部晴朗"],
+    [2, "局部多云"],
+    [3, "多云"],
+    [45, "雾"],
+    [48, "霜雾"],
+    [51, "小毛毛雨"],
+    [53, "毛毛雨"],
+    [55, "大毛毛雨"],
+    [61, "小雨"],
+    [63, "雨"],
+    [65, "大雨"],
+    [71, "小雪"],
+    [73, "雪"],
+    [75, "大雪"],
+    [80, "阵雨"],
+    [81, "阵雨"],
+    [82, "强阵雨"],
+    [95, "雷雨"],
+    [96, "雷雨"],
+    [99, "雷雨"]
   ]);
-  return weatherMap.get(Number(code)) || "Weather";
+  return weatherMap.get(Number(code)) || "天气";
 }
 
 function weatherCodeToIcon(code, isDay = 1) {
@@ -168,6 +168,36 @@ function weatherCodeToIcon(code, isDay = 1) {
   if (value >= 71 && value <= 77) return "❄";
   if (value >= 95) return "⚡";
   return "☁";
+}
+
+function pickLocalName(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return value["zh-CN"] || value.zh || value.en || Object.values(value)[0] || "";
+}
+
+async function reversePlaceFromCoordinates(latitude, longitude) {
+  const reverseUrl = new URL("https://nominatim.openstreetmap.org/reverse");
+  reverseUrl.search = new URLSearchParams({
+    lat: String(latitude),
+    lon: String(longitude),
+    zoom: "10",
+    format: "jsonv2",
+    "accept-language": "zh-CN,zh,en"
+  }).toString();
+
+  const response = await fetch(reverseUrl, {
+    headers: { "user-agent": `${USER_AGENT} qqmusic-karaoke-local-demo`, "accept": "application/json" }
+  });
+  if (!response.ok) return null;
+
+  const payload = await response.json();
+  const address = payload?.address || {};
+  return {
+    city: pickLocalName(address.city || address.town || address.village || address.county || payload.name),
+    admin1: pickLocalName(address.state || address.province || address.region),
+    country: pickLocalName(address.country)
+  };
 }
 
 class CookieJar {
@@ -586,22 +616,48 @@ app.get("/api/audio-proxy", async (req, res, next) => {
 app.get("/api/weather", async (req, res, next) => {
   try {
     const city = String(req.query.city || "Shanghai").trim();
-    const geoUrl = new URL("https://geocoding-api.open-meteo.com/v1/search");
-    geoUrl.search = new URLSearchParams({
-      name: city,
-      count: "1",
-      language: "zh",
-      format: "json"
-    }).toString();
+    const queryLatitude = Number.parseFloat(req.query.latitude);
+    const queryLongitude = Number.parseFloat(req.query.longitude);
+    const hasCoordinates = Number.isFinite(queryLatitude) && Number.isFinite(queryLongitude);
+    let place;
 
-    const geoResponse = await fetch(geoUrl, {
-      headers: { "user-agent": USER_AGENT, "accept": "application/json" }
-    });
-    const geoPayload = await geoResponse.json();
-    const place = geoPayload?.results?.[0];
-    if (!place) {
-      res.status(404).json({ error: "没有找到该城市天气。" });
-      return;
+    if (hasCoordinates) {
+      place = {
+        latitude: queryLatitude,
+        longitude: queryLongitude,
+        city: "当前位置",
+        country: "",
+        admin1: ""
+      };
+
+      const reversePlace = await reversePlaceFromCoordinates(queryLatitude, queryLongitude);
+      if (reversePlace) place = { ...place, ...reversePlace };
+    } else {
+      const geoUrl = new URL("https://geocoding-api.open-meteo.com/v1/search");
+      geoUrl.search = new URLSearchParams({
+        name: city,
+        count: "1",
+        language: "zh",
+        format: "json"
+      }).toString();
+
+      const geoResponse = await fetch(geoUrl, {
+        headers: { "user-agent": USER_AGENT, "accept": "application/json" }
+      });
+      const geoPayload = await geoResponse.json();
+      const geoPlace = geoPayload?.results?.[0];
+      if (!geoPlace) {
+        res.status(404).json({ error: "没有找到该城市天气。" });
+        return;
+      }
+
+      place = {
+        latitude: geoPlace.latitude,
+        longitude: geoPlace.longitude,
+        city: geoPlace.name || city,
+        country: geoPlace.country || "",
+        admin1: geoPlace.admin1 || ""
+      };
     }
 
     const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
@@ -620,7 +676,7 @@ app.get("/api/weather", async (req, res, next) => {
     const code = current.weather_code;
 
     res.json({
-      city: place.name || city,
+      city: place.city || city,
       country: place.country || "",
       admin1: place.admin1 || "",
       latitude: place.latitude,
