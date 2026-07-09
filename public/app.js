@@ -275,24 +275,40 @@ function setVisualizerMode(mode) {
   updateVisualizerModeLabel(false);
 }
 
-function updateFullscreenControl() {
+async function isAppFullscreen() {
+  if (window.qqMusicDesktop?.getFullscreen) {
+    try {
+      return await window.qqMusicDesktop.getFullscreen();
+    } catch {
+      return Boolean(document.fullscreenElement);
+    }
+  }
+
+  return Boolean(document.fullscreenElement);
+}
+
+async function updateFullscreenControl() {
   if (!toggleFullscreen) return;
-  const isFullscreen = Boolean(document.fullscreenElement);
+  const isFullscreen = await isAppFullscreen();
   toggleFullscreen.textContent = isFullscreen ? "退出全屏" : "全屏";
   toggleFullscreen.setAttribute("aria-label", isFullscreen ? "退出全屏" : "进入全屏");
 }
 
 async function toggleFullscreenMode() {
   try {
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
+    if (window.qqMusicDesktop?.toggleFullscreen) {
+      await window.qqMusicDesktop.toggleFullscreen();
     } else {
-      await document.documentElement.requestFullscreen();
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
     }
   } catch (error) {
     playState.textContent = `全屏切换失败：${error.message}`;
   }
-  updateFullscreenControl();
+  await updateFullscreenControl();
 }
 
 function updateVisualizerModeLabel(hasRealFrequency) {

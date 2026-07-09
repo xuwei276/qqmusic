@@ -199,10 +199,26 @@ input:focus-visible {
   left: 14px;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
-  gap: 6px;
+  gap: 4px 6px;
   align-items: center;
   max-width: min(260px, calc(100vw - 108px));
   color: rgba(235, 249, 252, 0.76);
+  text-shadow: none;
+}
+
+.track-title {
+  grid-column: 1 / -1;
+  max-width: 100%;
+  margin: 0 0 2px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: "Yozai Lyric", "KaiTi", "楷体", "STKaiti", "Microsoft YaHei", serif;
+  font-size: clamp(15px, 2vw, 24px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-shadow: none;
 }
 
@@ -247,8 +263,7 @@ input:focus-visible {
   text-align: center;
 }
 
-.status-pill,
-.centerpiece h1 {
+.status-pill {
   display: none;
 }
 
@@ -340,11 +355,12 @@ input:focus-visible {
 }
 
 .play-state {
-  min-height: 24px;
-  margin: 0 0 10px;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 14px;
-  text-shadow: 0 3px 7px rgba(0, 0, 0, 0.75);
+  max-width: min(38vw, 460px);
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.56);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .transport-hint {
@@ -519,6 +535,7 @@ audio {
 }
 
 .visualizer-meta strong {
+  min-width: 0;
   display: inline-flex;
   gap: 12px;
   align-items: center;
@@ -526,7 +543,12 @@ audio {
   font-weight: 700;
 }
 
+#heroState {
+  flex: 0 0 auto;
+}
+
 #trackTime {
+  flex: 0 0 auto;
   color: rgba(255, 255, 255, 0.56);
   font-weight: 500;
 }
@@ -1112,6 +1134,10 @@ audio {
     top: 12px;
     left: 12px;
     max-width: calc(100vw - 86px);
+  }
+
+  .play-state {
+    max-width: 34vw;
   }
 
   .vinyl-orbit {

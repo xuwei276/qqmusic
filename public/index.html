@@ -10,7 +10,8 @@
     <div class="wallpaper" aria-hidden="true"></div>
     <canvas id="visualizer" class="visualizer-field" width="1440" height="900" aria-label="音乐柱状频谱可视化"></canvas>
 
-    <section class="weather-card" aria-label="天气">
+    <section class="weather-card" aria-label="当前歌曲和天气">
+      <h1 id="currentTrack" class="track-title">搜索一首歌</h1>
       <div id="weatherIcon" class="weather-icon">☁</div>
       <div>
         <strong id="weatherCity">Shanghai</strong>
@@ -31,14 +32,12 @@
 
       <section class="centerpiece">
         <p id="loginState" class="status-pill">使用 QQ 音乐官方页登录后播放</p>
-        <h1 id="currentTrack">搜索一首歌</h1>
         <section class="lyrics-panel" aria-label="歌词">
           <p id="pinyinLyric" class="pinyin-lyric"></p>
           <p id="currentLyric" class="current-lyric">歌词会在播放时显示</p>
           <p id="nextLyric" class="next-lyric"></p>
           <div id="lyricsList" class="lyrics-list"></div>
         </section>
-        <p id="playState" class="play-state">播放状态会显示在这里</p>
         <audio id="player" preload="metadata"></audio>
       </section>
     </main>
@@ -117,6 +116,7 @@
         </span>
         <strong>
           <span id="heroState">等待播放</span>
+          <span id="playState" class="play-state">播放状态会显示在这里</span>
           <span id="trackTime">0:00 / 0:00</span>
         </strong>
       </div>

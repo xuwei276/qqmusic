@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Menu, session, shell } = require("electron");
+const path = require("node:path");
+const { app, BrowserWindow, Menu, ipcMain, session, shell } = require("electron");
 
 let mainWindow;
 let expressServer;
@@ -11,6 +12,7 @@ const windowWebPreferences = {
   contextIsolation: true,
   nodeIntegration: false,
   sandbox: true,
+  preload: path.join(__dirname, "preload.cjs"),
   partition: "persist:qqmusic-karaoke"
 };
 
@@ -108,6 +110,19 @@ app.whenReady().then(async () => {
       createWindow();
     }
   });
+});
+
+ipcMain.handle("qqmusic:toggle-fullscreen", (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) return false;
+  const nextFullscreen = !window.isFullScreen();
+  window.setFullScreen(nextFullscreen);
+  return nextFullscreen;
+});
+
+ipcMain.handle("qqmusic:get-fullscreen", (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  return Boolean(window?.isFullScreen());
 });
 
 app.on("window-all-closed", () => {
