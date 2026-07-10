@@ -282,10 +282,13 @@ input:focus-visible {
   font-size: clamp(9px, 1vw, 12px);
   font-weight: 900;
   letter-spacing: 0;
-  text-shadow: none;
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, 0.62),
+    0 0 14px rgba(255, 226, 180, 0.22);
 }
 
 .current-lyric {
+  position: relative;
   margin: 0;
   color: #fff;
   font-family: "Yozai Lyric", "KaiTi", "楷体", "STKaiti", "Microsoft YaHei", serif;
@@ -293,8 +296,28 @@ input:focus-visible {
   font-weight: 700;
   line-height: 1.06;
   letter-spacing: 0;
-  -webkit-text-stroke: 0.45px rgba(255, 255, 255, 0.72);
-  text-shadow: none;
+  -webkit-text-stroke: 0.25px rgba(255, 255, 255, 0.46);
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, 0.86),
+    0 0 18px rgba(255, 236, 196, 0.44),
+    0 0 34px rgba(190, 248, 255, 0.28);
+}
+
+.current-lyric::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  z-index: -1;
+  width: min(92vw, 860px);
+  height: 58px;
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at center, rgba(255, 238, 206, 0.2), rgba(190, 248, 255, 0.1) 38%, transparent 72%);
+  opacity: 0.72;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: blur(12px);
 }
 
 .pinyin-lyric,
@@ -307,6 +330,7 @@ input:focus-visible {
 }
 
 .lyric-token {
+  position: relative;
   width: clamp(34px, 5.6vw, 66px);
   min-width: 0;
   display: inline-flex;
@@ -315,21 +339,223 @@ input:focus-visible {
   text-align: center;
   white-space: nowrap;
   opacity: 0;
-  transform: translateY(8px);
-  animation: lyric-token-reveal var(--token-duration, 620ms) ease-out forwards;
+  filter: blur(3px);
+  transform: translateY(7px) scale(1.08);
+  animation: lyric-token-reveal calc(var(--token-duration, 620ms) * 1.12) ease-out forwards;
   animation-delay: calc(var(--token-index, 0) * var(--token-step, 105ms));
 }
 
+.lyric-glyph {
+  position: relative;
+  z-index: 1;
+  text-shadow:
+    0 0 5px rgba(255, 255, 255, 0.92),
+    0 0 16px rgba(255, 232, 188, 0.48),
+    0 0 30px rgba(190, 248, 255, 0.3);
+}
+
+.lyric-token-particle {
+  overflow: visible;
+}
+
+.lyric-token-particle::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 50%;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: radial-gradient(ellipse, rgba(255, 245, 224, 0.44) 0 18%, rgba(190, 248, 255, 0.18) 38%, transparent 72%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.5);
+  animation: lyric-dust-aura calc(var(--token-duration, 620ms) * 1.25) ease-out forwards;
+  animation-delay: calc(var(--token-index, 0) * var(--token-step, 105ms));
+  filter: blur(4px);
+}
+
+.lyric-particle {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 50%;
+  width: var(--particle-size, 4px);
+  height: var(--particle-size, 4px);
+  border-radius: 999px;
+  background: var(--particle-color, rgba(255, 255, 255, 0.94));
+  box-shadow: 0 0 10px var(--particle-glow, rgba(190, 248, 255, 0.75));
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.25);
+  animation: lyric-particle-drift calc(var(--token-duration, 620ms) * 1.32) ease-out forwards;
+  animation-delay: calc(var(--token-index, 0) * var(--token-step, 105ms) + var(--particle-delay, 0ms));
+}
+
+.lyric-particle-1 {
+  --particle-x: -28px;
+  --particle-y: -16px;
+  --particle-size: 3px;
+  --particle-color: rgba(255, 252, 238, 0.96);
+  --particle-glow: rgba(255, 236, 196, 0.86);
+}
+
+.lyric-particle-2 {
+  --particle-x: 24px;
+  --particle-y: -22px;
+  --particle-size: 4px;
+  --particle-delay: 28ms;
+  --particle-color: rgba(255, 226, 170, 0.9);
+  --particle-glow: rgba(255, 204, 126, 0.72);
+}
+
+.lyric-particle-3 {
+  --particle-x: -20px;
+  --particle-y: 18px;
+  --particle-size: 3px;
+  --particle-delay: 54ms;
+  --particle-color: rgba(190, 248, 255, 0.86);
+  --particle-glow: rgba(40, 201, 213, 0.58);
+}
+
+.lyric-particle-4 {
+  --particle-x: 30px;
+  --particle-y: 15px;
+  --particle-size: 2px;
+  --particle-delay: 72ms;
+  --particle-color: rgba(255, 255, 255, 0.88);
+  --particle-glow: rgba(255, 255, 255, 0.62);
+}
+
+.lyric-particle-5 {
+  --particle-x: -6px;
+  --particle-y: -32px;
+  --particle-size: 2px;
+  --particle-delay: 96ms;
+  --particle-color: rgba(255, 238, 204, 0.86);
+  --particle-glow: rgba(255, 218, 154, 0.62);
+}
+
+.lyric-particle-6 {
+  --particle-x: 8px;
+  --particle-y: 28px;
+  --particle-size: 3px;
+  --particle-delay: 118ms;
+  --particle-color: rgba(230, 250, 255, 0.82);
+  --particle-glow: rgba(190, 248, 255, 0.62);
+}
+
+.lyric-particle-7 {
+  --particle-x: -34px;
+  --particle-y: 0;
+  --particle-size: 2px;
+  --particle-delay: 36ms;
+  --particle-color: rgba(255, 244, 220, 0.84);
+  --particle-glow: rgba(255, 228, 178, 0.6);
+}
+
+.lyric-particle-8 {
+  --particle-x: 34px;
+  --particle-y: -2px;
+  --particle-size: 3px;
+  --particle-delay: 64ms;
+  --particle-color: rgba(255, 255, 255, 0.9);
+  --particle-glow: rgba(255, 255, 255, 0.66);
+}
+
+.lyric-particle-9 {
+  --particle-x: -18px;
+  --particle-y: -28px;
+  --particle-size: 2px;
+  --particle-delay: 88ms;
+  --particle-color: rgba(255, 213, 156, 0.78);
+  --particle-glow: rgba(255, 199, 130, 0.54);
+}
+
+.lyric-particle-10 {
+  --particle-x: 18px;
+  --particle-y: 30px;
+  --particle-size: 2px;
+  --particle-delay: 110ms;
+  --particle-color: rgba(210, 250, 255, 0.82);
+  --particle-glow: rgba(190, 248, 255, 0.54);
+}
+
 .pinyin-lyric .lyric-token {
+  filter: none;
   transform: scaleX(0.9) translateY(8px);
   transform-origin: center bottom;
   animation-name: pinyin-token-reveal;
 }
 
 @keyframes lyric-token-reveal {
+  0% {
+    opacity: 0;
+    filter: blur(4px) brightness(1.45);
+    transform: translateY(7px) scale(1.08);
+  }
+
+  34% {
+    opacity: 1;
+    filter: blur(1px) brightness(1.28);
+    transform: translateY(1px) scale(1.03);
+  }
+
+  72% {
+    opacity: 1;
+    filter: blur(0.2px) brightness(1.12);
+    transform: translateY(0) scale(1);
+  }
+
   to {
     opacity: 1;
-    transform: translateY(0);
+    filter: blur(0) brightness(1);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes lyric-dust-aura {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.55);
+  }
+
+  28% {
+    opacity: 0.68;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  68% {
+    opacity: 0.28;
+    transform: translate(-50%, -50%) scale(1.45);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.72);
+  }
+}
+
+@keyframes lyric-particle-drift {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+
+  22% {
+    opacity: 0.95;
+    transform: translate(calc(-50% + var(--particle-x) * 0.18), calc(-50% + var(--particle-y) * 0.12)) scale(1);
+  }
+
+  66% {
+    opacity: 0.58;
+    transform: translate(calc(-50% + var(--particle-x) * 0.76), calc(-50% + var(--particle-y) * 0.7 - 3px)) scale(0.78);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--particle-x)), calc(-50% + var(--particle-y) - 7px)) scale(0.28);
   }
 }
 
@@ -338,16 +564,6 @@ input:focus-visible {
     opacity: 1;
     transform: scaleX(0.9) translateY(0);
   }
-}
-
-.next-lyric {
-  min-height: 18px;
-  margin: 6px 0 0;
-  color: rgba(255, 255, 255, 0.68);
-  font-family: "Yozai Lyric", "KaiTi", "楷体", "STKaiti", "Microsoft YaHei", serif;
-  font-size: clamp(12px, 1.4vw, 14px);
-  letter-spacing: 0.08em;
-  text-shadow: none;
 }
 
 .lyrics-list {
@@ -1201,8 +1417,19 @@ audio {
 
   .lyric-token {
     opacity: 1;
+    filter: none;
     transform: translateY(0);
     animation: none;
+  }
+
+  .lyric-token-particle::after,
+  .lyric-particle {
+    display: none;
+  }
+
+  .current-lyric::before,
+  .lyric-token-particle::after {
+    content: none;
   }
 
   .pinyin-lyric .lyric-token {

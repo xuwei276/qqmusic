@@ -825,7 +825,7 @@ async function loadLyrics(songmid) {
   lyricState.activeIndex = -1;
   currentLyric.textContent = "正在加载歌词";
   pinyinLyric.textContent = "";
-  nextLyric.textContent = "";
+  if (nextLyric) nextLyric.textContent = "";
   lyricsList.innerHTML = "";
 
   const params = new URLSearchParams({ songmid });
@@ -890,7 +890,7 @@ function updateLyrics() {
   const active = lyricState.lines[index];
   const next = lyricState.lines[index + 1];
   renderAlignedLyrics(active, next);
-  nextLyric.textContent = next?.text || "";
+  if (nextLyric) nextLyric.textContent = next?.text || "";
 
   lyricsList.querySelectorAll("p").forEach((node) => {
     const isActive = Number(node.dataset.lyricIndex) === index;
@@ -917,11 +917,17 @@ function renderAlignedLyrics(line, nextLine) {
     `<span class="lyric-token" style="--token-index: ${index}; --token-step: ${timing.stepMs}ms; --token-duration: ${timing.durationMs}ms">${escapeHtml(token.pinyin || "")}</span>`
   )).join("");
   const lyricHtml = line.tokens.map((token, index) => (
-    `<span class="lyric-token" style="--token-index: ${index}; --token-step: ${timing.stepMs}ms; --token-duration: ${timing.durationMs}ms">${escapeHtml(token.text || "")}</span>`
+    `<span class="lyric-token lyric-token-particle" style="--token-index: ${index}; --token-step: ${timing.stepMs}ms; --token-duration: ${timing.durationMs}ms">${renderLyricParticles()}<span class="lyric-glyph">${escapeHtml(token.text || "")}</span></span>`
   )).join("");
 
   pinyinLyric.innerHTML = pinyinHtml;
   currentLyric.innerHTML = lyricHtml;
+}
+
+function renderLyricParticles() {
+  return Array.from({ length: 10 }, (_, index) => (
+    `<i class="lyric-particle lyric-particle-${index + 1}" aria-hidden="true"></i>`
+  )).join("");
 }
 
 function getLyricRevealTiming(line, nextLine, tokenCount) {
